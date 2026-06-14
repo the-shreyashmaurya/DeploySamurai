@@ -11,7 +11,7 @@
 - [x] Validate GitHub repo URL input
 - [x] Implement repo cloning with safe temp workspace handling
 - [x] Extract root files and folder tree
-- [ ] Detect language, framework, and package manager
+- [x] Detect language, framework, and package manager
 - [ ] Write unit tests for repo metadata extraction
 
 ## Phase 2: Architecture Reasoning
