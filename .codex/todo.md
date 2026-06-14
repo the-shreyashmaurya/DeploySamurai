@@ -33,7 +33,7 @@
 - [x] Write tests for rendered SAM output
 
 ## Phase 4: Deployment
-- [ ] Add AWS credential preflight checks
+- [x] Add AWS credential preflight checks
 - [ ] Implement SAM build and deploy execution
 - [ ] Capture stack outputs and deployment logs
 - [ ] Add failure handling and retry strategy

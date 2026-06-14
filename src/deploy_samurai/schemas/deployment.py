@@ -19,3 +19,11 @@ class DeploymentResult(BaseModel):
     status: Literal["succeeded", "failed"]
     stack_name: str
     outputs: dict[str, str]
+
+
+class AwsCredentialPreflightResult(BaseModel):
+    status: Literal["passed", "failed"]
+    region: str
+    account_id: str | None = None
+    arn: str | None = None
+    message: str
