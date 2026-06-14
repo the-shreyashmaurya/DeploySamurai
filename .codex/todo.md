@@ -40,7 +40,7 @@
 - [x] Write integration tests for deploy helpers where practical
 
 ## Phase 5: Verification
-- [ ] Implement stack status checks
+- [x] Implement stack status checks
 - [ ] Add endpoint smoke tests
 - [ ] Capture verification evidence
 - [ ] Return machine-readable pass/fail results
