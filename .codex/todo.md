@@ -26,7 +26,7 @@
 - [x] Return validated architecture summary payloads from the API
 
 ## Phase 3: SAM Generation
-- [ ] Define SAM artifact model
+- [x] Define SAM artifact model
 - [ ] Generate `template.yaml`
 - [ ] Generate Lambda handler scaffolds when needed
 - [ ] Add resource mapping for API Gateway, DynamoDB, S3, SQS, and EventBridge
