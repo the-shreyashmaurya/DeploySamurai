@@ -18,7 +18,7 @@ class RepositoryPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.read<DeployDashboardProvider>();
+    final provider = context.watch<DeployDashboardProvider>();
 
     return AppPanel(
       compact: compact,
@@ -55,7 +55,9 @@ class RepositoryPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 AnalyzeButton(
-                  onPressed: provider.analyzeRepository,
+                  onPressed: provider.isAnalyzing
+                      ? null
+                      : provider.analyzeRepository,
                   compact: true,
                 ),
               ],
@@ -72,10 +74,16 @@ class RepositoryPanel extends StatelessWidget {
                 const SizedBox(width: 28),
                 SizedBox(
                   width: 194,
-                  child: AnalyzeButton(onPressed: provider.analyzeRepository),
+                  child: AnalyzeButton(
+                    onPressed: provider.isAnalyzing
+                        ? null
+                        : provider.analyzeRepository,
+                  ),
                 ),
               ],
             ),
+          SizedBox(height: compact ? 12 : 16),
+          _StatusMessage(snapshot: snapshot),
           SizedBox(height: compact ? 18 : 26),
           const Text(
             'Analysis mode',
@@ -217,7 +225,7 @@ class AnalyzeButton extends StatelessWidget {
     super.key,
   });
 
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool compact;
 
   @override
@@ -243,8 +251,17 @@ class AnalyzeButton extends StatelessWidget {
         ),
         child: FilledButton.icon(
           onPressed: onPressed,
-          icon: const Icon(Icons.auto_awesome_rounded, size: 19),
-          label: const Text('Analyze Repo'),
+          icon: onPressed == null
+              ? const SizedBox(
+                  width: 17,
+                  height: 17,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.auto_awesome_rounded, size: 19),
+          label: Text(onPressed == null ? 'Analyzing' : 'Analyze Repo'),
           style: FilledButton.styleFrom(
             foregroundColor: Colors.white,
             backgroundColor: Colors.transparent,
@@ -259,6 +276,41 @@ class AnalyzeButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _StatusMessage extends StatelessWidget {
+  const _StatusMessage({required this.snapshot});
+
+  final DashboardSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (snapshot.runStatus) {
+      DashboardRunStatus.succeeded => AppColors.success,
+      DashboardRunStatus.failed => Colors.redAccent,
+      DashboardRunStatus.running => AppColors.teal,
+      DashboardRunStatus.idle => AppColors.muted,
+    };
+
+    return Row(
+      children: [
+        Icon(Icons.circle, size: 8, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            snapshot.statusMessage,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

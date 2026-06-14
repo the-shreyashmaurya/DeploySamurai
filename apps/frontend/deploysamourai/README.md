@@ -1,17 +1,27 @@
-# deploysamourai
+# DeploySamurai Frontend
 
-A new Flutter project.
+Flutter web dashboard for DeploySamurai.
 
-## Getting Started
+## Run Locally
 
-This project is a starting point for a Flutter application.
+Start the backend from the repository root:
 
-A few resources to get you started if this is your first Flutter project:
+```powershell
+uv run uvicorn deploy_samurai.main:app --reload --host 127.0.0.1 --port 8000
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Start Flutter from this directory:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```powershell
+flutter run -d chrome --web-port 8077 --dart-define=API_BASE_URL=http://127.0.0.1:8000/v1
+```
+
+`API_BASE_URL` defaults to `http://127.0.0.1:8000/v1`.
+
+## Integrated Endpoints
+
+- `POST /v1/jobs`
+- `POST /v1/analyze/repo`
+- `POST /v1/reason/architecture`
+
+SAM generation, deployment, and verification remain disabled in the UI until those backend routes are exposed.

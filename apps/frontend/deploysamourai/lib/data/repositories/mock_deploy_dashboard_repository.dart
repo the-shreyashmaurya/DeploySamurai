@@ -3,14 +3,17 @@ import '../../domain/repositories/deploy_dashboard_repository.dart';
 
 class MockDeployDashboardRepository implements DeployDashboardRepository {
   @override
-  DashboardSnapshot loadSnapshot() {
+  Future<DashboardSnapshot> loadSnapshot() async {
     return const DashboardSnapshot(
+      jobId: 'job_demo',
       repoUrl: 'https://github.com/acme-inc/order-service',
       selectedMode: AnalysisMode.advisor,
       region: 'AWS - us-east-1',
       version: 'v2.4.1',
       connected: true,
+      runStatus: DashboardRunStatus.idle,
       elapsed: '00:00:28',
+      statusMessage: 'Ready to analyze a GitHub repository.',
       pipelineSteps: [
         PipelineStep(
           title: 'Intake',
@@ -141,6 +144,27 @@ class MockDeployDashboardRepository implements DeployDashboardRepository {
         ),
       ],
       samPlanSummary: ['4 resources to create', 'No destructive changes'],
+      architectureSummary:
+          'Advisor mode identified an API entrypoint, async order queue, Lambda compute, and DynamoDB persistence.',
+      notes: [
+        'Review generated boundaries before deployment.',
+        'Autonomous mode stays gated until the SAM plan is available.',
+      ],
+    );
+  }
+
+  @override
+  Future<DashboardSnapshot> analyzeRepository({
+    required String repoUrl,
+    required AnalysisMode mode,
+  }) async {
+    final snapshot = await loadSnapshot();
+    return snapshot.copyWith(
+      repoUrl: repoUrl,
+      selectedMode: mode,
+      runStatus: DashboardRunStatus.succeeded,
+      statusMessage: 'Demo analysis completed.',
+      elapsed: '00:00:29',
     );
   }
 }

@@ -48,6 +48,20 @@ class ArchitecturePreviewPanel extends StatelessWidget {
             connections: snapshot.architectureConnections,
             compact: compact,
           ),
+          if (snapshot.architectureSummary.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              snapshot.architectureSummary,
+              maxLines: compact ? 3 : 4,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.muted,
+                fontSize: 12,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           if (!compact) ...[
             const SizedBox(height: 18),
             for (final fact in snapshot.stackFacts)
@@ -87,15 +101,32 @@ class ArchitectureDiagram extends StatelessWidget {
           final right = width - cardWidth - 8;
           final top = compact ? 6.0 : 12.0;
           final bottom = compact ? 104.0 : 136.0;
+          final slots = [
+            Rect.fromLTWH(left, top, cardWidth, cardHeight),
+            Rect.fromLTWH(right, top, cardWidth, cardHeight),
+            Rect.fromLTWH(left, bottom, cardWidth, cardHeight),
+            Rect.fromLTWH(right, bottom, cardWidth, cardHeight),
+          ];
+          final visibleResources = resources.take(4).toList();
           final positions = <String, Rect>{
-            'api': Rect.fromLTWH(left, top, cardWidth, cardHeight),
-            'lambda': Rect.fromLTWH(right, top, cardWidth, cardHeight),
-            'queue': Rect.fromLTWH(left, bottom, cardWidth, cardHeight),
-            'db': Rect.fromLTWH(right, bottom, cardWidth, cardHeight),
+            for (var index = 0; index < visibleResources.length; index++)
+              visibleResources[index].id: slots[index],
           };
 
           return Stack(
             children: [
+              if (visibleResources.isEmpty)
+                const Center(
+                  child: Text(
+                    'Run analysis to preview service boundaries.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               Positioned.fill(
                 child: CustomPaint(
                   painter: _ArchitectureConnectorPainter(
@@ -104,7 +135,7 @@ class ArchitectureDiagram extends StatelessWidget {
                   ),
                 ),
               ),
-              for (final resource in resources)
+              for (final resource in visibleResources)
                 if (positions.containsKey(resource.id))
                   Positioned.fromRect(
                     rect: positions[resource.id]!,

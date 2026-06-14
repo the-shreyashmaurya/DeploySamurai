@@ -10,8 +10,10 @@ class DeployDashboardProvider extends ChangeNotifier {
 
   DashboardSnapshot? _snapshot;
   bool _isLoading = true;
+  bool _isAnalyzing = false;
 
   bool get isLoading => _isLoading;
+  bool get isAnalyzing => _isAnalyzing;
 
   DashboardSnapshot get snapshot {
     final value = _snapshot;
@@ -21,8 +23,8 @@ class DeployDashboardProvider extends ChangeNotifier {
     return value;
   }
 
-  void load() {
-    _snapshot = _repository.loadSnapshot();
+  Future<void> load() async {
+    _snapshot = await _repository.loadSnapshot();
     _isLoading = false;
     notifyListeners();
   }
@@ -37,8 +39,24 @@ class DeployDashboardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void analyzeRepository() {
-    _snapshot = snapshot.copyWith(elapsed: '00:00:29');
+  Future<void> analyzeRepository() async {
+    final repoUrl = snapshot.repoUrl.trim();
+    if (repoUrl.isEmpty || _isAnalyzing) {
+      return;
+    }
+
+    _isAnalyzing = true;
+    _snapshot = snapshot.copyWith(
+      runStatus: DashboardRunStatus.running,
+      statusMessage: 'Connecting to DeploySamurai API...',
+    );
+    notifyListeners();
+
+    _snapshot = await _repository.analyzeRepository(
+      repoUrl: repoUrl,
+      mode: snapshot.selectedMode,
+    );
+    _isAnalyzing = false;
     notifyListeners();
   }
 }
