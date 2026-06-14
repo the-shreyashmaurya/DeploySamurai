@@ -29,6 +29,10 @@ def test_check_stack_status_passes_for_complete_stack() -> None:
 
     assert check.status == "passed"
     assert check.evidence == "Stack deploy-samurai-dev status is CREATE_COMPLETE."
+    assert check.evidence_items[0].metadata == {
+        "stack_name": "deploy-samurai-dev",
+        "stack_status": "CREATE_COMPLETE",
+    }
 
 
 def test_check_stack_status_fails_for_failed_stack() -> None:
@@ -39,6 +43,7 @@ def test_check_stack_status_fails_for_failed_stack() -> None:
 
     assert check.status == "failed"
     assert "ROLLBACK_COMPLETE" in check.evidence
+    assert check.evidence_items[0].metadata["stack_status"] == "ROLLBACK_COMPLETE"
 
 
 def test_check_stack_status_fails_when_stack_lookup_errors() -> None:
@@ -49,3 +54,4 @@ def test_check_stack_status_fails_when_stack_lookup_errors() -> None:
 
     assert check.status == "failed"
     assert "Unable to describe stack missing-stack" in check.evidence
+    assert check.evidence_items[0].source == "cloudformation.describe_stacks"

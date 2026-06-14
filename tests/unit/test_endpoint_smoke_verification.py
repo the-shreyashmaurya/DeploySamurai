@@ -36,6 +36,11 @@ def test_check_endpoint_health_passes_for_success_status() -> None:
 
     assert check.status == "passed"
     assert check.evidence == "GET https://api.example.com/health returned HTTP 204."
+    assert check.evidence_items[0].metadata == {
+        "url": "https://api.example.com/health",
+        "endpoint_path": "/health",
+        "status_code": "204",
+    }
     assert client.calls == [("https://api.example.com/health", 2.0)]
 
 
@@ -48,6 +53,7 @@ def test_check_endpoint_health_fails_for_error_status() -> None:
 
     assert check.status == "failed"
     assert check.evidence == "GET https://api.example.com/health returned HTTP 503."
+    assert check.evidence_items[0].source == "http.get"
 
 
 def test_check_endpoint_health_fails_when_request_errors() -> None:
@@ -59,3 +65,4 @@ def test_check_endpoint_health_fails_when_request_errors() -> None:
 
     assert check.status == "failed"
     assert "GET https://api.example.com/health failed: timed out" == check.evidence
+    assert check.evidence_items[0].metadata["url"] == "https://api.example.com/health"

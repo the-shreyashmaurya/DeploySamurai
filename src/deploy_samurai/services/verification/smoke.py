@@ -7,6 +7,7 @@ from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 from deploy_samurai.schemas.verification import VerificationCheck
+from deploy_samurai.services.verification.evidence import build_evidence
 
 DEFAULT_TIMEOUT_SECONDS = 10.0
 SUCCESSFUL_STATUS_RANGE = range(200, 400)
@@ -54,16 +55,36 @@ def check_endpoint_health(
     try:
         response = client.get(url, timeout=timeout)
     except Exception as exc:
+        detail = f"GET {url} failed: {exc}"
         return VerificationCheck(
             name=f"endpoint_smoke:{endpoint_path}",
             status="failed",
-            evidence=f"GET {url} failed: {exc}",
+            evidence=detail,
+            evidence_items=[
+                build_evidence(
+                    source="http.get",
+                    detail=detail,
+                    metadata={"url": url, "endpoint_path": endpoint_path},
+                )
+            ],
         )
 
     status_code = int(getattr(response, "status_code"))
     check_status = "passed" if status_code in SUCCESSFUL_STATUS_RANGE else "failed"
+    detail = f"GET {url} returned HTTP {status_code}."
     return VerificationCheck(
         name=f"endpoint_smoke:{endpoint_path}",
         status=check_status,
-        evidence=f"GET {url} returned HTTP {status_code}.",
+        evidence=detail,
+        evidence_items=[
+            build_evidence(
+                source="http.get",
+                detail=detail,
+                metadata={
+                    "url": url,
+                    "endpoint_path": endpoint_path,
+                    "status_code": str(status_code),
+                },
+            )
+        ],
     )
