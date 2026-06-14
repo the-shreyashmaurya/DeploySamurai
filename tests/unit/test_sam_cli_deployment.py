@@ -87,7 +87,7 @@ def test_execute_sam_build_and_deploy_surfaces_build_failure(tmp_path: Path) -> 
     def runner(command, **kwargs):  # type: ignore[no-untyped-def]
         return subprocess.CompletedProcess(command, returncode=1, stdout="", stderr="bad template")
 
-    with pytest.raises(SamDeploymentError, match="sam build failed: bad template"):
+    with pytest.raises(SamDeploymentError, match="sam build failed: bad template after 2 attempt"):
         execute_sam_build_and_deploy(
             DeploymentRequest(
                 job_id="job_123",
@@ -97,3 +97,34 @@ def test_execute_sam_build_and_deploy_surfaces_build_failure(tmp_path: Path) -> 
             stack_name="deploy-samurai-dev",
             runner=runner,
         )
+
+
+def test_execute_sam_build_and_deploy_retries_failed_deploy(tmp_path: Path) -> None:
+    template_path = tmp_path / "template.yaml"
+    template_path.write_text("Transform: AWS::Serverless-2016-10-31", encoding="utf-8")
+    deploy_attempts = 0
+
+    def runner(command, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal deploy_attempts
+        if command[:2] == ["sam", "build"]:
+            return subprocess.CompletedProcess(command, returncode=0, stdout="build ok", stderr="")
+        if command[:2] == ["sam", "deploy"]:
+            deploy_attempts += 1
+            if deploy_attempts == 1:
+                return subprocess.CompletedProcess(command, returncode=1, stdout="", stderr="busy")
+            return subprocess.CompletedProcess(command, returncode=0, stdout="deploy ok", stderr="")
+        return subprocess.CompletedProcess(command, returncode=0, stdout="[]", stderr="")
+
+    response = execute_sam_build_and_deploy(
+        DeploymentRequest(
+            job_id="job_123",
+            artifact_path=str(template_path),
+            confirm_deploy=True,
+        ),
+        stack_name="deploy-samurai-dev",
+        runner=runner,
+        retry_attempts=2,
+    )
+
+    assert response.status == "succeeded"
+    assert deploy_attempts == 2

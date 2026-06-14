@@ -10,6 +10,7 @@ from deploy_samurai.schemas.deployment import DeploymentRequest, DeploymentResul
 
 SAM_BUILD_TIMEOUT_SECONDS = 300
 SAM_DEPLOY_TIMEOUT_SECONDS = 900
+DEFAULT_RETRY_ATTEMPTS = 2
 
 CommandRunner = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -23,6 +24,7 @@ def execute_sam_build_and_deploy(
     *,
     stack_name: str,
     runner: CommandRunner = subprocess.run,
+    retry_attempts: int = DEFAULT_RETRY_ATTEMPTS,
 ) -> DeploymentResult:
     if not payload.confirm_deploy:
         raise SamDeploymentError("Deployment requires confirm_deploy=true.")
@@ -31,20 +33,20 @@ def execute_sam_build_and_deploy(
     if not template_path.exists():
         raise SamDeploymentError(f"SAM template does not exist: {template_path}")
 
-    build_result = _run_command(
+    build_result = _run_command_with_retries(
         [
             "sam",
             "build",
             "--template-file",
             str(template_path),
         ],
+        label="sam build",
         runner=runner,
         timeout=SAM_BUILD_TIMEOUT_SECONDS,
+        max_attempts=retry_attempts,
     )
-    if build_result.returncode != 0:
-        raise SamDeploymentError(_command_error("sam build", build_result))
 
-    deploy_result = _run_command(
+    deploy_result = _run_command_with_retries(
         [
             "sam",
             "deploy",
@@ -55,11 +57,11 @@ def execute_sam_build_and_deploy(
             "--capabilities",
             "CAPABILITY_IAM",
         ],
+        label="sam deploy",
         runner=runner,
         timeout=SAM_DEPLOY_TIMEOUT_SECONDS,
+        max_attempts=retry_attempts,
     )
-    if deploy_result.returncode != 0:
-        raise SamDeploymentError(_command_error("sam deploy", deploy_result))
 
     outputs_result = _run_command(
         [
@@ -113,6 +115,30 @@ def _run_command(
         raise SamDeploymentError(f"Command timed out: {' '.join(command)}") from exc
     except OSError as exc:
         raise SamDeploymentError(f"Command failed to start: {' '.join(command)}: {exc}") from exc
+
+
+def _run_command_with_retries(
+    command: list[str],
+    *,
+    label: str,
+    runner: CommandRunner,
+    timeout: int,
+    max_attempts: int,
+) -> subprocess.CompletedProcess[str]:
+    attempts = max(1, max_attempts)
+    last_result: subprocess.CompletedProcess[str] | None = None
+
+    for attempt in range(1, attempts + 1):
+        result = _run_command(command, runner=runner, timeout=timeout)
+        if result.returncode == 0:
+            return result
+        last_result = result
+        if attempt == attempts:
+            break
+
+    if last_result is None:
+        raise SamDeploymentError(f"{label} did not run.")
+    raise SamDeploymentError(f"{_command_error(label, last_result)} after {attempts} attempt(s)")
 
 
 def _command_error(label: str, result: subprocess.CompletedProcess[str]) -> str:
