@@ -43,7 +43,7 @@
 - [x] Implement stack status checks
 - [x] Add endpoint smoke tests
 - [x] Capture verification evidence
-- [ ] Return machine-readable pass/fail results
+- [x] Return machine-readable pass/fail results
 - [ ] Write tests for verification logic
 
 ## Phase 6: UX and Polish

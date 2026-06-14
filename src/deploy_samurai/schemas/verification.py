@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 class VerificationRequest(BaseModel):
     job_id: str
     deployment_id: str
+    stack_name: str | None = None
+    base_url: str | None = None
     expected_endpoints: list[str]
 
 
