@@ -11,9 +11,11 @@ class DeployDashboardProvider extends ChangeNotifier {
   DashboardSnapshot? _snapshot;
   bool _isLoading = true;
   bool _isAnalyzing = false;
+  bool _isDeploying = false;
 
   bool get isLoading => _isLoading;
   bool get isAnalyzing => _isAnalyzing;
+  bool get isDeploying => _isDeploying;
 
   DashboardSnapshot get snapshot {
     final value = _snapshot;
@@ -57,6 +59,23 @@ class DeployDashboardProvider extends ChangeNotifier {
       mode: snapshot.selectedMode,
     );
     _isAnalyzing = false;
+    notifyListeners();
+  }
+
+  Future<void> approveAndDeploy() async {
+    if (_isDeploying || snapshot.samTemplateArtifactPath == null) {
+      return;
+    }
+
+    _isDeploying = true;
+    _snapshot = snapshot.copyWith(
+      runStatus: DashboardRunStatus.running,
+      statusMessage: 'Deploying approved SAM stack...',
+    );
+    notifyListeners();
+
+    _snapshot = await _repository.approveAndDeploy(current: snapshot);
+    _isDeploying = false;
     notifyListeners();
   }
 }

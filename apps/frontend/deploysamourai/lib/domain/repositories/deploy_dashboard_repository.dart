@@ -7,4 +7,8 @@ abstract class DeployDashboardRepository {
     required String repoUrl,
     required AnalysisMode mode,
   });
+
+  Future<DashboardSnapshot> approveAndDeploy({
+    required DashboardSnapshot current,
+  });
 }

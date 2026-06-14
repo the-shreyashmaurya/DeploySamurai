@@ -7,6 +7,7 @@ class DeploymentRequest(BaseModel):
     job_id: str
     artifact_path: str
     confirm_deploy: bool
+    stack_name: str | None = None
 
 
 class DeploymentCreateResponse(BaseModel):

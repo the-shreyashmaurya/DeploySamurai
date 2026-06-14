@@ -49,6 +49,24 @@ class DashboardSnapshot {
   final String architectureSummary;
   final List<String> notes;
 
+  String? get samTemplateArtifactPath {
+    for (final artifact in artifacts) {
+      if (artifact.name == 'template.yaml' && artifact.artifactPath != null) {
+        return artifact.artifactPath;
+      }
+    }
+    return null;
+  }
+
+  String? get samTemplateDownloadUrl {
+    for (final artifact in artifacts) {
+      if (artifact.name == 'template.yaml' && artifact.downloadUrl != null) {
+        return artifact.downloadUrl;
+      }
+    }
+    return null;
+  }
+
   DashboardSnapshot copyWith({
     Object? jobId = _unset,
     String? repoUrl,
@@ -137,12 +155,14 @@ class SamArtifact {
     required this.name,
     required this.size,
     required this.isFolder,
+    this.artifactPath,
     this.downloadUrl,
   });
 
   final String name;
   final String size;
   final bool isFolder;
+  final String? artifactPath;
   final String? downloadUrl;
 }
 

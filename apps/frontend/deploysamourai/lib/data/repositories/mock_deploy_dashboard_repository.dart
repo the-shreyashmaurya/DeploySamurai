@@ -167,4 +167,30 @@ class MockDeployDashboardRepository implements DeployDashboardRepository {
       elapsed: '00:00:29',
     );
   }
+
+  @override
+  Future<DashboardSnapshot> approveAndDeploy({
+    required DashboardSnapshot current,
+  }) async {
+    return current.copyWith(
+      runStatus: DashboardRunStatus.succeeded,
+      statusMessage: 'Demo deployment completed successfully.',
+      pipelineSteps: [
+        for (final step in current.pipelineSteps)
+          PipelineStep(
+            title: step.title,
+            caption: 'Completed',
+            status: PipelineStepStatus.completed,
+          ),
+      ],
+      consoleLogs: [
+        ...current.consoleLogs,
+        const ConsoleLog(
+          time: '12:15:00',
+          level: 'INFO',
+          message: 'Demo SAM deployment completed.',
+        ),
+      ],
+    );
+  }
 }

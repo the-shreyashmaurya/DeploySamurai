@@ -222,6 +222,7 @@ List<SamArtifact> _samArtifacts(SamGenerationDto? sam) {
       name: 'template.yaml',
       size: '${sam.resourceSummaries.length} resources',
       isFolder: false,
+      artifactPath: sam.templatePath,
       downloadUrl: sam.templateDownloadUrl,
     ),
     for (final file in sam.files.where(
@@ -231,8 +232,78 @@ List<SamArtifact> _samArtifacts(SamGenerationDto? sam) {
         name: _compactArtifactPath(file.path),
         size: 'handler',
         isFolder: false,
+        artifactPath: file.path,
       ),
   ];
+}
+
+DashboardSnapshot buildDeployingDashboardSnapshot({
+  required DashboardSnapshot current,
+}) {
+  return current.copyWith(
+    runStatus: DashboardRunStatus.running,
+    statusMessage: 'Deploying approved SAM stack...',
+    pipelineSteps: _pipeline([
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      PipelineStepStatus.inProgress,
+      PipelineStepStatus.pending,
+    ]),
+    consoleLogs: [
+      ...current.consoleLogs,
+      _log('INFO', 'Approval received. Calling POST /v1/deploy/sam'),
+    ],
+  );
+}
+
+DashboardSnapshot buildDeployedDashboardSnapshot({
+  required DashboardSnapshot current,
+  required DeploymentResultDto deployment,
+  VerificationResultDto? verification,
+}) {
+  final verified = verification?.passed;
+  return current.copyWith(
+    runStatus: verified == false
+        ? DashboardRunStatus.failed
+        : DashboardRunStatus.succeeded,
+    statusMessage: verified == false
+        ? 'Deployment completed, but verification reported failures.'
+        : 'Deployment completed successfully.',
+    pipelineSteps: _pipeline([
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      PipelineStepStatus.completed,
+      _optionalWorkflowStatus(verified),
+    ]),
+    stackFacts: [
+      ...current.stackFacts,
+      StackFact(label: 'Stack', value: deployment.stackName),
+      StackFact(label: 'Deployment', value: deployment.status),
+      if (verification != null)
+        StackFact(label: 'Verification', value: verification.status),
+    ],
+    consoleLogs: [
+      ...current.consoleLogs,
+      _log('INFO', 'Deployment created: ${deployment.deploymentId}'),
+      for (final log in deployment.logs) _log('INFO', log),
+      if (verification != null)
+        _log('INFO', 'Verification status: ${verification.status}'),
+      if (verification != null)
+        for (final check in verification.checks)
+          _log(
+            check.status == 'failed' ? 'ERROR' : 'INFO',
+            '${check.name}: ${check.evidence ?? check.status}',
+          ),
+    ],
+  );
 }
 
 String _compactArtifactPath(String path) {

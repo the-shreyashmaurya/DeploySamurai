@@ -76,6 +76,19 @@ class DeploySamuraiApiClient {
     return DeploymentPreflightDto.fromJson(response);
   }
 
+  Future<DeploymentResultDto> deploySamStack({
+    required String jobId,
+    required String artifactPath,
+  }) async {
+    final response = await _postJson('/deploy/sam', {
+      'job_id': jobId,
+      'artifact_path': artifactPath,
+      'confirm_deploy': true,
+      'stack_name': 'deploy-samurai-${jobId.replaceAll('_', '-')}',
+    });
+    return DeploymentResultDto.fromJson(response);
+  }
+
   Future<VerificationResultDto> verifyDeployment({
     required String jobId,
     required String deploymentId,
@@ -488,6 +501,36 @@ class DeploymentPreflightDto {
   final String message;
 
   bool get passed => status == 'passed';
+}
+
+class DeploymentResultDto {
+  const DeploymentResultDto({
+    required this.deploymentId,
+    required this.status,
+    required this.stackName,
+    required this.outputs,
+    required this.logs,
+  });
+
+  factory DeploymentResultDto.fromJson(Map<String, dynamic> json) {
+    return DeploymentResultDto(
+      deploymentId: json['deployment_id'] as String,
+      status: json['status'] as String,
+      stackName: json['stack_name'] as String,
+      outputs: (json['outputs'] as Map<String, dynamic>? ?? {}).map(
+        (key, value) => MapEntry(key, value.toString()),
+      ),
+      logs: _stringList(json['logs']),
+    );
+  }
+
+  final String deploymentId;
+  final String status;
+  final String stackName;
+  final Map<String, String> outputs;
+  final List<String> logs;
+
+  String? get apiUrl => outputs['ApiUrl'];
 }
 
 class VerificationResultDto {

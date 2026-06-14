@@ -157,6 +157,129 @@ void main() {
 
     expect(snapshot.repoUrl, isEmpty);
   });
+
+  test(
+    'approveAndDeploy calls deployment and verification endpoints',
+    () async {
+      final requestedPaths = <String>[];
+      final client = MockClient((request) async {
+        requestedPaths.add(request.url.path);
+
+        switch (request.url.path) {
+          case '/v1/deploy/sam':
+            return _json({
+              'deployment_id': 'dep_123',
+              'status': 'succeeded',
+              'stack_name': 'deploy-samurai-job-123',
+              'outputs': {'ApiUrl': 'https://api.example.com'},
+              'logs': ['sam build exited 0: ok', 'sam deploy exited 0: ok'],
+            });
+          case '/v1/verify':
+            return _json({
+              'status': 'passed',
+              'checks': [
+                {
+                  'name': 'stack_status',
+                  'status': 'passed',
+                  'evidence': 'Stack is CREATE_COMPLETE.',
+                  'evidence_items': [],
+                },
+              ],
+            });
+        }
+
+        return http.Response('Not found', 404);
+      });
+      final repository = ApiDeployDashboardRepository(
+        DeploySamuraiApiClient(
+          httpClient: client,
+          baseUrl: 'http://127.0.0.1:8000/v1',
+        ),
+      );
+
+      final snapshot = await repository.approveAndDeploy(
+        current: buildDeployableSnapshot(),
+      );
+
+      expect(requestedPaths, ['/v1/deploy/sam', '/v1/verify']);
+      expect(snapshot.runStatus, DashboardRunStatus.succeeded);
+      expect(snapshot.statusMessage, 'Deployment completed successfully.');
+      expect(snapshot.stackFacts.any((fact) => fact.label == 'Stack'), isTrue);
+    },
+  );
+}
+
+DashboardSnapshot buildDeployableSnapshot() {
+  return const DashboardSnapshot(
+    jobId: 'job_123',
+    repoUrl: 'https://github.com/acme/orders-api',
+    selectedMode: AnalysisMode.advisor,
+    region: 'AWS - us-east-1',
+    version: 'v2.4.1',
+    connected: true,
+    runStatus: DashboardRunStatus.succeeded,
+    elapsed: 'live',
+    statusMessage: 'Analysis completed.',
+    pipelineSteps: [
+      PipelineStep(
+        title: 'Intake',
+        caption: 'Completed',
+        status: PipelineStepStatus.completed,
+      ),
+      PipelineStep(
+        title: 'Clone',
+        caption: 'Completed',
+        status: PipelineStepStatus.completed,
+      ),
+      PipelineStep(
+        title: 'Detect Stack',
+        caption: 'Completed',
+        status: PipelineStepStatus.completed,
+      ),
+      PipelineStep(
+        title: 'Boundaries',
+        caption: 'Completed',
+        status: PipelineStepStatus.completed,
+      ),
+      PipelineStep(
+        title: 'SAM Plan',
+        caption: 'Completed',
+        status: PipelineStepStatus.completed,
+      ),
+      PipelineStep(
+        title: 'Approval',
+        caption: 'Pending',
+        status: PipelineStepStatus.locked,
+      ),
+      PipelineStep(
+        title: 'Deploy',
+        caption: 'Pending',
+        status: PipelineStepStatus.pending,
+      ),
+      PipelineStep(
+        title: 'Verify',
+        caption: 'Pending',
+        status: PipelineStepStatus.pending,
+      ),
+    ],
+    architectureResources: [],
+    architectureConnections: [],
+    stackFacts: [],
+    artifacts: [
+      SamArtifact(
+        name: 'template.yaml',
+        size: '2 resources',
+        isFolder: false,
+        artifactPath: 'artifacts/job_123/template.yaml',
+        downloadUrl:
+            'http://127.0.0.1:8000/v1/sam/artifacts/job_123/template.yaml',
+      ),
+    ],
+    consoleLogs: [],
+    samPlanSummary: ['Generated template.yaml'],
+    architectureSummary: 'Architecture summary.',
+    notes: [],
+  );
 }
 
 http.Response _json(Map<String, Object?> body) {

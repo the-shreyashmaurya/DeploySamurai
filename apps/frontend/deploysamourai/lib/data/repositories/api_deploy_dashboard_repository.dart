@@ -49,4 +49,40 @@ class ApiDeployDashboardRepository implements DeployDashboardRepository {
       return buildFailedDashboardSnapshot(current: initial, error: error);
     }
   }
+
+  @override
+  Future<DashboardSnapshot> approveAndDeploy({
+    required DashboardSnapshot current,
+  }) async {
+    final jobId = current.jobId;
+    final artifactPath = current.samTemplateArtifactPath;
+    if (jobId == null || artifactPath == null) {
+      return buildFailedDashboardSnapshot(
+        current: current,
+        error: 'Generate a SAM plan before deployment.',
+      );
+    }
+
+    final deploying = buildDeployingDashboardSnapshot(current: current);
+    try {
+      final deployment = await _apiClient.deploySamStack(
+        jobId: jobId,
+        artifactPath: artifactPath,
+      );
+      final verification = await _apiClient.verifyDeployment(
+        jobId: jobId,
+        deploymentId: deployment.deploymentId,
+        stackName: deployment.stackName,
+        baseUrl: deployment.apiUrl,
+        expectedEndpoints: const ['/health'],
+      );
+      return buildDeployedDashboardSnapshot(
+        current: deploying,
+        deployment: deployment,
+        verification: verification,
+      );
+    } catch (error) {
+      return buildFailedDashboardSnapshot(current: deploying, error: error);
+    }
+  }
 }

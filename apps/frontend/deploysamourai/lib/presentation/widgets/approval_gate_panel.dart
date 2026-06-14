@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../core/download/artifact_downloader.dart';
 import '../../core/theme/app_colors.dart';
 import '../../domain/entities/dashboard_snapshot.dart';
+import '../providers/deploy_dashboard_provider.dart';
 import 'app_panel.dart';
 
 class ApprovalGatePanel extends StatelessWidget {
@@ -17,6 +19,10 @@ class ApprovalGatePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<DeployDashboardProvider>();
+    final canDeploy =
+        snapshot.samTemplateArtifactPath != null && !provider.isDeploying;
+
     return AppPanel(
       compact: compact,
       padding: EdgeInsets.all(compact ? 16 : 20),
@@ -118,9 +124,25 @@ class ApprovalGatePanel extends StatelessWidget {
             width: double.infinity,
             height: compact ? 40 : 50,
             child: FilledButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.lock_outline_rounded, size: 16),
-              label: const Text('Approve & Deploy'),
+              onPressed: canDeploy ? provider.approveAndDeploy : null,
+              icon: provider.isDeploying
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Icon(
+                      canDeploy
+                          ? Icons.rocket_launch_outlined
+                          : Icons.lock_outline_rounded,
+                      size: 16,
+                    ),
+              label: Text(
+                provider.isDeploying ? 'Deploying' : 'Approve & Deploy',
+              ),
               style: FilledButton.styleFrom(
                 disabledBackgroundColor: const Color(0xffe2e8ee),
                 disabledForegroundColor: AppColors.muted,
@@ -132,8 +154,10 @@ class ApprovalGatePanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
-            '* Approval required to enable deployment.',
+          Text(
+            snapshot.samTemplateArtifactPath == null
+                ? '* Generate a SAM plan to enable deployment.'
+                : '* This runs SAM CLI using your configured AWS credentials.',
             style: TextStyle(
               color: AppColors.muted,
               fontSize: 11,
