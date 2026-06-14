@@ -41,7 +41,7 @@
 
 ## Phase 5: Verification
 - [x] Implement stack status checks
-- [ ] Add endpoint smoke tests
+- [x] Add endpoint smoke tests
 - [ ] Capture verification evidence
 - [ ] Return machine-readable pass/fail results
 - [ ] Write tests for verification logic
