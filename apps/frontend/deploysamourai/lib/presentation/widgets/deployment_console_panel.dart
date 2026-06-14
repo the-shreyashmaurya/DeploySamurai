@@ -38,7 +38,7 @@ class DeploymentConsolePanel extends StatelessWidget {
         ],
       ),
       child: Container(
-        height: compact ? 190 : 224,
+        height: compact ? 190 : 208,
         width: double.infinity,
         decoration: BoxDecoration(
           color: AppColors.navy,
