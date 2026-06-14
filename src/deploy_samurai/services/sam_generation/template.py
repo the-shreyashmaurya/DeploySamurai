@@ -4,7 +4,11 @@ from pathlib import Path
 
 import yaml
 
-from deploy_samurai.schemas.architecture import ArchitectureReasoningResponse, ServiceCandidate
+from deploy_samurai.schemas.architecture import (
+    ArchitectureReasoningResponse,
+    CommunicationFlow,
+    ServiceCandidate,
+)
 from deploy_samurai.schemas.sam_generation import (
     GeneratedFile,
     LambdaHandlerArtifact,
@@ -89,24 +93,65 @@ def _template_resources(architecture: ArchitectureReasoningResponse) -> dict[str
 
     for service in _lambda_services(architecture.service_candidates):
         logical_id = _function_logical_id(service.name)
+        events = {
+            "ApiEvent": {
+                "Type": "HttpApi",
+                "Properties": {
+                    "ApiId": {"Ref": "HttpApi"},
+                    "Path": f"/{service.name}",
+                    "Method": "ANY",
+                },
+            }
+        }
+        policies: list[object] = []
+
+        if service.data_store == "dynamodb":
+            table_id = _table_logical_id(service.name)
+            resources[table_id] = _dynamodb_table(service.name)
+            policies.append(
+                {
+                    "DynamoDBCrudPolicy": {
+                        "TableName": {"Ref": table_id},
+                    }
+                }
+            )
+
+        for flow in _targeted_flows(architecture.communication_flows, service.name, "sqs"):
+            queue_id = _queue_logical_id(flow.target)
+            resources.setdefault(queue_id, _sqs_queue(flow.target))
+            events[_event_logical_id(flow.source, flow.target)] = {
+                "Type": "SQS",
+                "Properties": {
+                    "Queue": {"Fn::GetAtt": [queue_id, "Arn"]},
+                    "BatchSize": 10,
+                },
+            }
+            policies.append(
+                {
+                    "SQSPollerPolicy": {
+                        "QueueName": {"Fn::GetAtt": [queue_id, "QueueName"]},
+                    }
+                }
+            )
+
         resources[logical_id] = {
             "Type": "AWS::Serverless::Function",
             "Properties": {
                 "CodeUri": f"src/{service.name}/",
                 "Handler": "app.handler",
                 "Description": service.responsibility,
-                "Events": {
-                    "ApiEvent": {
-                        "Type": "HttpApi",
-                        "Properties": {
-                            "ApiId": {"Ref": "HttpApi"},
-                            "Path": f"/{service.name}",
-                            "Method": "ANY",
-                        },
-                    }
-                },
+                "Events": events,
             },
         }
+        if policies:
+            resources[logical_id]["Properties"]["Policies"] = policies
+
+    for service in architecture.service_candidates:
+        if service.runtime == "s3-cloudfront":
+            resources[_bucket_logical_id(service.name)] = _s3_bucket(service.name)
+
+    for flow in _transport_flows(architecture.communication_flows, "eventbridge"):
+        resources[_eventbridge_rule_logical_id(flow.source, flow.target)] = _eventbridge_rule(flow)
 
     return resources
 
@@ -127,6 +172,46 @@ def _resource_summaries(architecture: ArchitectureReasoningResponse) -> list[Sam
                 resource_type="AWS::Serverless::Function",
                 service_name=service.name,
                 reason=service.responsibility,
+            )
+        )
+        if service.data_store == "dynamodb":
+            summaries.append(
+                SamResourceSummary(
+                    logical_id=_table_logical_id(service.name),
+                    resource_type="AWS::DynamoDB::Table",
+                    service_name=service.name,
+                    reason=f"Persist {service.name} service state",
+                )
+            )
+
+    for service in architecture.service_candidates:
+        if service.runtime == "s3-cloudfront":
+            summaries.append(
+                SamResourceSummary(
+                    logical_id=_bucket_logical_id(service.name),
+                    resource_type="AWS::S3::Bucket",
+                    service_name=service.name,
+                    reason=f"Store static assets for {service.name}",
+                )
+            )
+
+    for flow in _transport_flows(architecture.communication_flows, "sqs"):
+        summaries.append(
+            SamResourceSummary(
+                logical_id=_queue_logical_id(flow.target),
+                resource_type="AWS::SQS::Queue",
+                service_name=flow.target,
+                reason=f"Buffer async messages from {flow.source} to {flow.target}",
+            )
+        )
+
+    for flow in _transport_flows(architecture.communication_flows, "eventbridge"):
+        summaries.append(
+            SamResourceSummary(
+                logical_id=_eventbridge_rule_logical_id(flow.source, flow.target),
+                resource_type="AWS::Events::Rule",
+                service_name=flow.target,
+                reason=f"Route events from {flow.source} to {flow.target}",
             )
         )
 
@@ -178,4 +263,91 @@ def _lambda_services(candidates: list[ServiceCandidate]) -> list[ServiceCandidat
 
 
 def _function_logical_id(service_name: str) -> str:
-    return "".join(part.capitalize() for part in service_name.replace("_", "-").split("-")) + "Function"
+    return f"{_pascal_case(service_name)}Function"
+
+
+def _table_logical_id(service_name: str) -> str:
+    return f"{_pascal_case(service_name)}Table"
+
+
+def _bucket_logical_id(service_name: str) -> str:
+    return f"{_pascal_case(service_name)}Bucket"
+
+
+def _queue_logical_id(service_name: str) -> str:
+    return f"{_pascal_case(service_name)}Queue"
+
+
+def _event_logical_id(source: str, target: str) -> str:
+    return f"{_pascal_case(source)}To{_pascal_case(target)}Event"
+
+
+def _eventbridge_rule_logical_id(source: str, target: str) -> str:
+    return f"{_pascal_case(source)}To{_pascal_case(target)}Rule"
+
+
+def _pascal_case(value: str) -> str:
+    return "".join(part.capitalize() for part in value.replace("_", "-").split("-"))
+
+
+def _dynamodb_table(service_name: str) -> dict[str, object]:
+    return {
+        "Type": "AWS::DynamoDB::Table",
+        "Properties": {
+            "BillingMode": "PAY_PER_REQUEST",
+            "AttributeDefinitions": [
+                {"AttributeName": "pk", "AttributeType": "S"},
+            ],
+            "KeySchema": [
+                {"AttributeName": "pk", "KeyType": "HASH"},
+            ],
+            "TableName": {"Fn::Sub": f"${{AWS::StackName}}-{service_name}"},
+        },
+    }
+
+
+def _s3_bucket(service_name: str) -> dict[str, object]:
+    return {
+        "Type": "AWS::S3::Bucket",
+        "Properties": {
+            "BucketName": {"Fn::Sub": f"${{AWS::StackName}}-{service_name}-assets"},
+        },
+    }
+
+
+def _sqs_queue(service_name: str) -> dict[str, object]:
+    return {
+        "Type": "AWS::SQS::Queue",
+        "Properties": {
+            "QueueName": {"Fn::Sub": f"${{AWS::StackName}}-{service_name}"},
+            "VisibilityTimeout": 60,
+        },
+    }
+
+
+def _eventbridge_rule(flow: CommunicationFlow) -> dict[str, object]:
+    return {
+        "Type": "AWS::Events::Rule",
+        "Properties": {
+            "EventPattern": {
+                "source": [f"deploy-samurai.{flow.source}"],
+                "detail-type": [f"{flow.source}.{flow.target}"],
+            },
+            "State": "ENABLED",
+        },
+    }
+
+
+def _targeted_flows(
+    flows: list[CommunicationFlow],
+    target: str,
+    transport: str,
+) -> list[CommunicationFlow]:
+    return [flow for flow in flows if flow.target == target and flow.transport == transport]
+
+
+def _transport_flows(
+    flows: list[CommunicationFlow],
+    transport: str,
+) -> list[CommunicationFlow]:
+    return [flow for flow in flows if flow.transport == transport]

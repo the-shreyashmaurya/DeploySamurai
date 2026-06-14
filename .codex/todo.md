@@ -29,7 +29,7 @@
 - [x] Define SAM artifact model
 - [x] Generate `template.yaml`
 - [x] Generate Lambda handler scaffolds when needed
-- [ ] Add resource mapping for API Gateway, DynamoDB, S3, SQS, and EventBridge
+- [x] Add resource mapping for API Gateway, DynamoDB, S3, SQS, and EventBridge
 - [ ] Write tests for rendered SAM output
 
 ## Phase 4: Deployment
