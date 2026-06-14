@@ -25,18 +25,6 @@ class DeploymentConsolePanel extends StatelessWidget {
         size: 18,
         color: AppColors.muted,
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ConsoleActionButton(label: 'Clear', onPressed: () {}),
-          const SizedBox(width: 8),
-          _ConsoleIconButton(
-            icon: Icons.pause_rounded,
-            tooltip: 'Pause log stream',
-            onPressed: () {},
-          ),
-        ],
-      ),
       child: Container(
         height: compact ? 190 : 208,
         width: double.infinity,
@@ -94,59 +82,6 @@ class _ConsoleLine extends StatelessWidget {
             style: const TextStyle(color: Color(0xffe8f1f6)),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ConsoleActionButton extends StatelessWidget {
-  const _ConsoleActionButton({required this.label, required this.onPressed});
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.text,
-          side: const BorderSide(color: AppColors.border),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-        ),
-        child: Text(label),
-      ),
-    );
-  }
-}
-
-class _ConsoleIconButton extends StatelessWidget {
-  const _ConsoleIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      icon: Icon(icon, size: 17),
-      color: AppColors.text,
-      style: IconButton.styleFrom(
-        fixedSize: const Size(34, 34),
-        backgroundColor: AppColors.surface,
-        side: const BorderSide(color: AppColors.border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }

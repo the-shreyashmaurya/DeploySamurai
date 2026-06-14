@@ -7,14 +7,7 @@ class SideNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      _NavItem(Icons.home_outlined, 'Overview', true),
-      _NavItem(Icons.account_tree_outlined, 'Repositories', false),
-      _NavItem(Icons.description_outlined, 'Plans', false),
-      _NavItem(Icons.near_me_outlined, 'Deployments', false),
-      _NavItem(Icons.cloud_queue_outlined, 'Environments', false),
-      _NavItem(Icons.settings_outlined, 'Settings', false),
-    ];
+    const items = [_NavItem(Icons.dashboard_outlined, 'Dashboard', true)];
 
     return Container(
       width: 184,
@@ -31,24 +24,6 @@ class SideNavigation extends StatelessWidget {
               child: _NavButton(item: item),
             ),
           const Spacer(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 22),
-            child: Row(
-              children: [
-                _SquareButton(
-                  icon: Icons.wb_sunny_outlined,
-                  tooltip: 'Toggle theme',
-                  onPressed: () {},
-                ),
-                const Spacer(),
-                _SquareButton(
-                  icon: Icons.chevron_left_rounded,
-                  tooltip: 'Collapse navigation',
-                  onPressed: () {},
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -124,34 +99,6 @@ class _NavButton extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SquareButton extends StatelessWidget {
-  const _SquareButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      icon: Icon(icon, size: 18),
-      color: AppColors.muted,
-      style: IconButton.styleFrom(
-        fixedSize: const Size(42, 42),
-        backgroundColor: AppColors.surface,
-        side: const BorderSide(color: AppColors.border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
