@@ -115,3 +115,59 @@ def test_generate_sam_template_writes_template_artifact(tmp_path: Path) -> None:
     assert handler_path.exists()
     assert '"service": "api"' in handler_path.read_text(encoding="utf-8")
     assert response.files[1].purpose == "lambda_handler"
+
+
+def test_generate_sam_template_renders_complete_iac_recommendation(tmp_path: Path) -> None:
+    response = generate_sam_template(
+        SamGenerationRequest(
+            job_id="job_456",
+            architecture=ArchitectureReasoningResponse(
+                architecture_type="microservices",
+                summary="Recommended infrastructure for an API and worker split.",
+                service_candidates=[
+                    ServiceCandidate(
+                        name="api",
+                        responsibility="Expose synchronous application APIs",
+                        data_store="dynamodb",
+                    ),
+                    ServiceCandidate(
+                        name="worker",
+                        responsibility="Process async jobs",
+                    ),
+                    ServiceCandidate(
+                        name="frontend",
+                        responsibility="Serve static frontend assets",
+                        runtime="s3-cloudfront",
+                    ),
+                ],
+                communication_flows=[
+                    CommunicationFlow(
+                        source="api",
+                        target="worker",
+                        style="async",
+                        transport="sqs",
+                    )
+                ],
+            ),
+        ),
+        output_root=tmp_path,
+    )
+
+    template = yaml.safe_load(Path(response.artifacts.template_path).read_text(encoding="utf-8"))
+    resource_types = {
+        summary.logical_id: summary.resource_type
+        for summary in response.artifacts.resource_summaries
+    }
+
+    assert template["Description"] == "Recommended infrastructure for an API and worker split."
+    assert resource_types == {
+        "HttpApi": "AWS::Serverless::HttpApi",
+        "ApiFunction": "AWS::Serverless::Function",
+        "ApiTable": "AWS::DynamoDB::Table",
+        "WorkerFunction": "AWS::Serverless::Function",
+        "FrontendBucket": "AWS::S3::Bucket",
+        "WorkerQueue": "AWS::SQS::Queue",
+    }
+    assert {file.purpose for file in response.files} == {"sam_template", "lambda_handler"}
+    assert len(response.handlers) == 2
+    assert all(Path(handler.handler_path).exists() for handler in response.handlers)

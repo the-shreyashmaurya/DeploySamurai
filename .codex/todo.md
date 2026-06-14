@@ -30,7 +30,7 @@
 - [x] Generate `template.yaml`
 - [x] Generate Lambda handler scaffolds when needed
 - [x] Add resource mapping for API Gateway, DynamoDB, S3, SQS, and EventBridge
-- [ ] Write tests for rendered SAM output
+- [x] Write tests for rendered SAM output
 
 ## Phase 4: Deployment
 - [ ] Add AWS credential preflight checks
