@@ -23,7 +23,7 @@ Transitioning an existing application (e.g., a Python FastAPI or Express.js back
 DeploySamurai orchestrates the pipeline across five primary stages:
 1. **Intake & Scanning:** A safe workspace cloner downloads the target GitHub URL and scans project files (e.g., `pyproject.toml`, `package.json`, `requirements.txt`) to extract structure, frameworks, entrypoints, and package managers.
 2. **Service Boundary Parsing:** Heuristic algorithms and LLM prompts analyze code complexity and candidate services to propose service boundaries, communication pathways, and persistence stores.
-3. **IaC Generation:** A generation engine outputs a ready-to-run AWS SAM `template.yaml` mapping resources like `AWS::Serverless::Function`, `AWS::DynamoDB::Table`, and `AWS::Serverless::HttpApi`, and creates basic Lambda stubs when new entrypoints are required.
+3. **IaC Generation:** A generation engine outputs a ready-to-run AWS SAM ('Serverless Application Model' is an open-source framework for building serverless applications on AWS) `template.yaml` mapping resources like `AWS::Serverless::Function`, `AWS::DynamoDB::Table`, and `AWS::Serverless::HttpApi`, and creates basic Lambda stubs when new entrypoints are required.
 4. **AWS SAM CLI Wrapper:** The deployment runner checks local AWS profiles, runs `sam build`, compiles dependencies, and executes `sam deploy` to provision CloudFormation resources.
 5. **Endpoint Smoke Verification:** A validation runner sends HTTP verification probes to the deployed API endpoints, verifying status codes and logging telemetry evidence.
 
