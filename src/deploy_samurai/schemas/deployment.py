@@ -20,6 +20,7 @@ class DeploymentResult(BaseModel):
     status: Literal["succeeded", "failed"]
     stack_name: str
     outputs: dict[str, str]
+    logs: list[str] = []
 
 
 class AwsCredentialPreflightResult(BaseModel):

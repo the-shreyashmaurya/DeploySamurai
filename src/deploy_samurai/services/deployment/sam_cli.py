@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
-from deploy_samurai.schemas.deployment import DeploymentCreateResponse, DeploymentRequest
+from deploy_samurai.schemas.deployment import DeploymentRequest, DeploymentResult
 
 SAM_BUILD_TIMEOUT_SECONDS = 300
 SAM_DEPLOY_TIMEOUT_SECONDS = 900
@@ -22,7 +23,7 @@ def execute_sam_build_and_deploy(
     *,
     stack_name: str,
     runner: CommandRunner = subprocess.run,
-) -> DeploymentCreateResponse:
+) -> DeploymentResult:
     if not payload.confirm_deploy:
         raise SamDeploymentError("Deployment requires confirm_deploy=true.")
 
@@ -60,10 +61,37 @@ def execute_sam_build_and_deploy(
     if deploy_result.returncode != 0:
         raise SamDeploymentError(_command_error("sam deploy", deploy_result))
 
-    return DeploymentCreateResponse(
+    outputs_result = _run_command(
+        [
+            "aws",
+            "cloudformation",
+            "describe-stacks",
+            "--stack-name",
+            stack_name,
+            "--query",
+            "Stacks[0].Outputs",
+            "--output",
+            "json",
+        ],
+        runner=runner,
+        timeout=60,
+    )
+
+    outputs = {}
+    output_logs = [_command_log("aws cloudformation describe-stacks", outputs_result)]
+    if outputs_result.returncode == 0:
+        outputs = _parse_stack_outputs(outputs_result.stdout)
+
+    return DeploymentResult(
         deployment_id=f"dep_{uuid4().hex[:12]}",
         status="succeeded",
         stack_name=stack_name,
+        outputs=outputs,
+        logs=[
+            _command_log("sam build", build_result),
+            _command_log("sam deploy", deploy_result),
+            *output_logs,
+        ],
     )
 
 
@@ -90,3 +118,28 @@ def _run_command(
 def _command_error(label: str, result: subprocess.CompletedProcess[str]) -> str:
     output = (result.stderr or result.stdout or "Unknown SAM CLI error.").strip()
     return f"{label} failed: {output}"
+
+
+def _command_log(label: str, result: subprocess.CompletedProcess[str]) -> str:
+    output = (result.stdout or result.stderr or "").strip()
+    return f"{label} exited {result.returncode}: {output}"
+
+
+def _parse_stack_outputs(stdout: str) -> dict[str, str]:
+    try:
+        values = json.loads(stdout or "[]")
+    except json.JSONDecodeError:
+        return {}
+
+    if not isinstance(values, list):
+        return {}
+
+    outputs: dict[str, str] = {}
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        key = item.get("OutputKey")
+        value = item.get("OutputValue")
+        if key and value:
+            outputs[str(key)] = str(value)
+    return outputs
