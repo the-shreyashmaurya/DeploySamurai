@@ -12,7 +12,7 @@
 - [x] Implement repo cloning with safe temp workspace handling
 - [x] Extract root files and folder tree
 - [x] Detect language, framework, and package manager
-- [ ] Write unit tests for repo metadata extraction
+- [x] Write unit tests for repo metadata extraction
 
 ## Phase 2: Architecture Reasoning
 - [ ] Define normalized repo metadata schema

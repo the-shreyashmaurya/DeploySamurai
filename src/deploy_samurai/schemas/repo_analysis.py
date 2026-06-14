@@ -12,6 +12,7 @@ class RepoSummary(BaseModel):
 
 class RepoStructure(BaseModel):
     root_files: list[str] = Field(default_factory=list)
+    folder_tree: list[str] = Field(default_factory=list)
     entrypoints: list[str] = Field(default_factory=list)
 
 
