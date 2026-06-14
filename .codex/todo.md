@@ -15,7 +15,7 @@
 - [x] Write unit tests for repo metadata extraction
 
 ## Phase 2: Architecture Reasoning
-- [ ] Define normalized repo metadata schema
+- [x] Define normalized repo metadata schema
 - [ ] Implement service boundary heuristics
 - [ ] Decide modular monolith versus microservices
 - [ ] Generate architecture summary output
