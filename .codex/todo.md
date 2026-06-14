@@ -16,7 +16,7 @@
 
 ## Phase 2: Architecture Reasoning
 - [x] Define normalized repo metadata schema
-- [ ] Implement service boundary heuristics
+- [x] Implement service boundary heuristics
 - [ ] Decide modular monolith versus microservices
 - [ ] Generate architecture summary output
 - [ ] Write tests for reasoning outputs and schema validation
