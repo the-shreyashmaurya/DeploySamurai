@@ -19,7 +19,7 @@
 - [x] Implement service boundary heuristics
 - [x] Decide modular monolith versus microservices
 - [x] Generate architecture summary output
-- [ ] Write tests for reasoning outputs and schema validation
+- [x] Write tests for reasoning outputs and schema validation
 
 ## Phase 3: SAM Generation
 - [ ] Define SAM artifact model
