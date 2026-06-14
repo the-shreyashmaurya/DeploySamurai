@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     artifact_root: Path = Path("artifacts")
     aws_region: str = "us-east-1"
     cors_allow_origins: str = "http://localhost:3000,http://localhost:8077,http://127.0.0.1:8077"
+    cors_allow_origin_regex: str | None = r"http://(localhost|127\.0\.0\.1):\d+"
     openai_api_key: str | None = None
     openai_model: str | None = None
     openai_timeout_seconds: int = 30

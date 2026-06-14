@@ -25,3 +25,18 @@ def test_cors_preflight_allows_local_flutter_origin() -> None:
 
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:8077"
+
+
+def test_cors_preflight_allows_flutter_random_localhost_port() -> None:
+    client = TestClient(create_app())
+
+    response = client.options(
+        "/v1/jobs",
+        headers={
+            "Origin": "http://localhost:54321",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:54321"
