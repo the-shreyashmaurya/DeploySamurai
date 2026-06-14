@@ -54,6 +54,23 @@ class DeploySamuraiApiClient {
     return ArchitectureReasoningDto.fromJson(response);
   }
 
+  Future<SamGenerationDto> generateSamArtifacts({
+    required String jobId,
+    required ArchitectureReasoningDto architecture,
+  }) async {
+    final response = await _postJson('/sam/generate', {
+      'job_id': jobId,
+      'architecture': architecture.toJson(),
+      'output_format': 'sam',
+    });
+    return SamGenerationDto.fromJson(
+      response,
+      templateDownloadUrl: _baseUri
+          .resolve('${_baseUri.path}/sam/artifacts/$jobId/template.yaml')
+          .toString(),
+    );
+  }
+
   Future<DeploymentPreflightDto> runDeploymentPreflight() async {
     final response = await _postJson('/deploy/preflight', {});
     return DeploymentPreflightDto.fromJson(response);
@@ -288,6 +305,20 @@ class ArchitectureReasoningDto {
   final List<ServiceCandidateDto> serviceCandidates;
   final List<CommunicationFlowDto> communicationFlows;
   final List<String> notes;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'architecture_type': architectureType,
+      'summary': summary,
+      'service_candidates': [
+        for (final service in serviceCandidates) service.toJson(),
+      ],
+      'communication_flows': [
+        for (final flow in communicationFlows) flow.toJson(),
+      ],
+      'notes': notes,
+    };
+  }
 }
 
 class ServiceCandidateDto {
@@ -311,6 +342,15 @@ class ServiceCandidateDto {
   final String responsibility;
   final String runtime;
   final String? dataStore;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'responsibility': responsibility,
+      'runtime': runtime,
+      'data_store': dataStore,
+    };
+  }
 }
 
 class CommunicationFlowDto {
@@ -334,6 +374,92 @@ class CommunicationFlowDto {
   final String target;
   final String style;
   final String transport;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'from': source,
+      'to': target,
+      'style': style,
+      'transport': transport,
+    };
+  }
+}
+
+class SamGenerationDto {
+  const SamGenerationDto({
+    required this.files,
+    required this.templatePath,
+    required this.resourceSummaries,
+    required this.templateDownloadUrl,
+  });
+
+  factory SamGenerationDto.fromJson(
+    Map<String, dynamic> json, {
+    required String templateDownloadUrl,
+  }) {
+    final artifacts = json['artifacts'] as Map<String, dynamic>? ?? {};
+    return SamGenerationDto(
+      files: (json['files'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(GeneratedFileDto.fromJson)
+          .toList(growable: false),
+      templatePath: artifacts['template_path'] as String? ?? '',
+      resourceSummaries:
+          (artifacts['resource_summaries'] as List<dynamic>? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .map(SamResourceSummaryDto.fromJson)
+              .toList(growable: false),
+      templateDownloadUrl: templateDownloadUrl,
+    );
+  }
+
+  final List<GeneratedFileDto> files;
+  final String templatePath;
+  final List<SamResourceSummaryDto> resourceSummaries;
+  final String templateDownloadUrl;
+}
+
+class GeneratedFileDto {
+  const GeneratedFileDto({
+    required this.path,
+    required this.contentType,
+    required this.purpose,
+  });
+
+  factory GeneratedFileDto.fromJson(Map<String, dynamic> json) {
+    return GeneratedFileDto(
+      path: json['path'] as String? ?? '',
+      contentType: json['content_type'] as String? ?? '',
+      purpose: json['purpose'] as String? ?? 'artifact',
+    );
+  }
+
+  final String path;
+  final String contentType;
+  final String purpose;
+}
+
+class SamResourceSummaryDto {
+  const SamResourceSummaryDto({
+    required this.logicalId,
+    required this.resourceType,
+    this.serviceName,
+    required this.reason,
+  });
+
+  factory SamResourceSummaryDto.fromJson(Map<String, dynamic> json) {
+    return SamResourceSummaryDto(
+      logicalId: json['logical_id'] as String? ?? '',
+      resourceType: json['resource_type'] as String? ?? '',
+      serviceName: json['service_name'] as String?,
+      reason: json['reason'] as String? ?? '',
+    );
+  }
+
+  final String logicalId;
+  final String resourceType;
+  final String? serviceName;
+  final String reason;
 }
 
 class DeploymentPreflightDto {

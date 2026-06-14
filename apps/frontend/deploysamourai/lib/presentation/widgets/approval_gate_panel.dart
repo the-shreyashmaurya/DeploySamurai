@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/download/artifact_downloader.dart';
 import '../../core/theme/app_colors.dart';
 import '../../domain/entities/dashboard_snapshot.dart';
 import 'app_panel.dart';
@@ -97,7 +98,9 @@ class ApprovalGatePanel extends StatelessWidget {
             width: double.infinity,
             height: compact ? 40 : 44,
             child: OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: _templateDownloadUrl(snapshot) == null
+                  ? null
+                  : () => downloadArtifact(_templateDownloadUrl(snapshot)!),
               icon: const Icon(Icons.open_in_new_rounded, size: 15),
               label: const Text('Review SAM Plan'),
               style: OutlinedButton.styleFrom(
@@ -140,5 +143,14 @@ class ApprovalGatePanel extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String? _templateDownloadUrl(DashboardSnapshot snapshot) {
+    for (final artifact in snapshot.artifacts) {
+      if (artifact.name == 'template.yaml' && artifact.downloadUrl != null) {
+        return artifact.downloadUrl;
+      }
+    }
+    return null;
   }
 }

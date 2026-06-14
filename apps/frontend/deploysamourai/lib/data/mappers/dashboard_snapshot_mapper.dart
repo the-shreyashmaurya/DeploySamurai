@@ -3,7 +3,7 @@ import '../api/deploy_samurai_api_client.dart';
 
 DashboardSnapshot buildInitialDashboardSnapshot() {
   return const DashboardSnapshot(
-    repoUrl: 'https://github.com/acme-inc/order-service',
+    repoUrl: '',
     selectedMode: AnalysisMode.advisor,
     region: 'AWS - us-east-1',
     version: 'v2.4.1',
@@ -113,36 +113,35 @@ DashboardSnapshot buildAnalyzedDashboardSnapshot({
   required JobCreateDto job,
   required RepoAnalysisDto analysis,
   required ArchitectureReasoningDto architecture,
+  SamGenerationDto? sam,
   DeploymentPreflightDto? deploymentPreflight,
   VerificationResultDto? verification,
 }) {
   final resources = _architectureResources(architecture);
   final connections = _architectureConnections(architecture);
-  final deploymentPassed = deploymentPreflight?.passed ?? true;
-  final verificationPassed = verification?.passed ?? true;
+  final deploymentPassed = deploymentPreflight?.passed;
+  final verificationPassed = verification?.passed;
+  final workflowFailed =
+      deploymentPassed == false || verificationPassed == false;
   return current.copyWith(
     jobId: job.jobId,
     connected: true,
-    runStatus: deploymentPassed && verificationPassed
-        ? DashboardRunStatus.succeeded
-        : DashboardRunStatus.failed,
+    runStatus: workflowFailed
+        ? DashboardRunStatus.failed
+        : DashboardRunStatus.succeeded,
     elapsed: 'live',
-    statusMessage: deploymentPassed && verificationPassed
-        ? 'Analysis, deployment preflight, and verification completed from backend API.'
-        : 'Backend workflow completed with deployment or verification warnings.',
+    statusMessage: workflowFailed
+        ? 'Backend workflow completed with deployment or verification warnings.'
+        : 'Analysis completed. Review the architecture and SAM plan before deployment.',
     pipelineSteps: _pipeline([
       PipelineStepStatus.completed,
       PipelineStepStatus.completed,
       PipelineStepStatus.completed,
       PipelineStepStatus.completed,
+      sam == null ? PipelineStepStatus.locked : PipelineStepStatus.completed,
       PipelineStepStatus.locked,
-      PipelineStepStatus.locked,
-      deploymentPassed
-          ? PipelineStepStatus.completed
-          : PipelineStepStatus.inProgress,
-      verificationPassed
-          ? PipelineStepStatus.completed
-          : PipelineStepStatus.inProgress,
+      _optionalWorkflowStatus(deploymentPassed),
+      _optionalWorkflowStatus(verificationPassed),
     ]),
     architectureResources: resources,
     architectureConnections: connections,
@@ -162,7 +161,7 @@ DashboardSnapshot buildAnalyzedDashboardSnapshot({
       if (verification != null)
         StackFact(label: 'Verification', value: verification.status),
     ],
-    artifacts: const [],
+    artifacts: _samArtifacts(sam),
     consoleLogs: [
       ...current.consoleLogs,
       _log('INFO', 'Job created: ${job.jobId} (${job.status})'),
@@ -177,6 +176,8 @@ DashboardSnapshot buildAnalyzedDashboardSnapshot({
       ),
       _log('INFO', 'Architecture type: ${architecture.architectureType}'),
       _log('INFO', 'Identified ${resources.length} candidate service(s)'),
+      if (sam != null)
+        _log('INFO', 'Generated SAM template: ${sam.templatePath}'),
       if (deploymentPreflight != null)
         _log('INFO', 'Deployment preflight: ${deploymentPreflight.message}'),
       if (deploymentPreflight?.accountId != null)
@@ -191,7 +192,13 @@ DashboardSnapshot buildAnalyzedDashboardSnapshot({
           ),
     ],
     samPlanSummary: [
-      'SAM plan is approval-gated',
+      if (sam == null)
+        'SAM generation API is not connected'
+      else ...[
+        'Generated template.yaml',
+        '${sam.resourceSummaries.length} AWS resource recommendation(s)',
+      ],
+      'Deployment remains approval-gated',
       if (deploymentPreflight != null)
         'AWS credential preflight ${deploymentPreflight.status} '
             'in ${deploymentPreflight.region}',
@@ -204,6 +211,36 @@ DashboardSnapshot buildAnalyzedDashboardSnapshot({
     architectureSummary: architecture.summary,
     notes: architecture.notes,
   );
+}
+
+List<SamArtifact> _samArtifacts(SamGenerationDto? sam) {
+  if (sam == null) {
+    return const [];
+  }
+  return [
+    SamArtifact(
+      name: 'template.yaml',
+      size: '${sam.resourceSummaries.length} resources',
+      isFolder: false,
+      downloadUrl: sam.templateDownloadUrl,
+    ),
+    for (final file in sam.files.where(
+      (file) => file.purpose == 'lambda_handler',
+    ))
+      SamArtifact(
+        name: _compactArtifactPath(file.path),
+        size: 'handler',
+        isFolder: false,
+      ),
+  ];
+}
+
+String _compactArtifactPath(String path) {
+  final parts = path.split('/').where((part) => part.isNotEmpty).toList();
+  if (parts.length <= 3) {
+    return path;
+  }
+  return parts.sublist(parts.length - 3).join('/');
 }
 
 DashboardSnapshot buildFailedDashboardSnapshot({
@@ -226,6 +263,13 @@ DashboardSnapshot buildFailedDashboardSnapshot({
     ]),
     consoleLogs: [...current.consoleLogs, _log('ERROR', _friendlyError(error))],
   );
+}
+
+PipelineStepStatus _optionalWorkflowStatus(bool? passed) {
+  if (passed == null) {
+    return PipelineStepStatus.pending;
+  }
+  return passed ? PipelineStepStatus.completed : PipelineStepStatus.inProgress;
 }
 
 List<PipelineStep> _pipeline(List<PipelineStepStatus> statuses) {

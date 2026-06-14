@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/download/artifact_downloader.dart';
 import '../../core/theme/app_colors.dart';
 import '../../domain/entities/dashboard_snapshot.dart';
 import 'app_panel.dart';
@@ -67,9 +68,11 @@ class SamArtifactsPanel extends StatelessWidget {
             width: double.infinity,
             height: 42,
             child: OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: _templateDownloadUrl(snapshot) == null
+                  ? null
+                  : () => downloadArtifact(_templateDownloadUrl(snapshot)!),
               icon: const Icon(Icons.file_download_outlined, size: 18),
-              label: const Text('Download Artifacts'),
+              label: const Text('Download template.yaml'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.text,
                 side: const BorderSide(color: AppColors.border),
@@ -86,5 +89,14 @@ class SamArtifactsPanel extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String? _templateDownloadUrl(DashboardSnapshot snapshot) {
+    for (final artifact in snapshot.artifacts) {
+      if (artifact.name == 'template.yaml' && artifact.downloadUrl != null) {
+        return artifact.downloadUrl;
+      }
+    }
+    return null;
   }
 }

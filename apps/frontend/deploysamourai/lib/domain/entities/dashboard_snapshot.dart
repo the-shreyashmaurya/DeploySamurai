@@ -6,6 +6,8 @@ enum ArchitectureResourceType { apiGateway, lambda, sqs, dynamoDb }
 
 enum DashboardRunStatus { idle, running, succeeded, failed }
 
+const Object _unset = Object();
+
 class DashboardSnapshot {
   const DashboardSnapshot({
     this.jobId,
@@ -48,7 +50,7 @@ class DashboardSnapshot {
   final List<String> notes;
 
   DashboardSnapshot copyWith({
-    String? jobId,
+    Object? jobId = _unset,
     String? repoUrl,
     AnalysisMode? selectedMode,
     bool? connected,
@@ -66,7 +68,7 @@ class DashboardSnapshot {
     List<String>? notes,
   }) {
     return DashboardSnapshot(
-      jobId: jobId ?? this.jobId,
+      jobId: identical(jobId, _unset) ? this.jobId : jobId as String?,
       repoUrl: repoUrl ?? this.repoUrl,
       selectedMode: selectedMode ?? this.selectedMode,
       region: region,
@@ -135,11 +137,13 @@ class SamArtifact {
     required this.name,
     required this.size,
     required this.isFolder,
+    this.downloadUrl,
   });
 
   final String name;
   final String size;
   final bool isFolder;
+  final String? downloadUrl;
 }
 
 class ConsoleLog {

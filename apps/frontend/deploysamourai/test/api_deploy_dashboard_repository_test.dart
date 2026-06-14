@@ -9,7 +9,7 @@ import 'package:http/testing.dart';
 
 void main() {
   test(
-    'analyzeRepository calls backend workflow and maps dashboard state',
+    'analyzeRepository calls analysis workflow and maps dashboard state',
     () async {
       final requestedPaths = <String>[];
       final client = MockClient((request) async {
@@ -65,31 +65,39 @@ void main() {
               ],
               'notes': ['Review boundaries before deployment.'],
             });
-          case '/v1/deploy/preflight':
+          case '/v1/sam/generate':
             return _json({
-              'status': 'passed',
-              'region': 'us-east-1',
-              'account_id': '123456789012',
-              'arn': 'arn:aws:iam::123456789012:user/deploy-samurai',
-              'message': 'AWS credentials are valid.',
-            });
-          case '/v1/verify':
-            return _json({
-              'status': 'passed',
-              'checks': [
+              'files': [
                 {
-                  'name': 'stack_status',
-                  'status': 'skipped',
-                  'evidence': 'Stack status check skipped.',
-                  'evidence_items': [],
+                  'path': 'artifacts/job_123/template.yaml',
+                  'content_type': 'text/yaml',
+                  'purpose': 'sam_template',
                 },
                 {
-                  'name': 'endpoint_smoke',
-                  'status': 'skipped',
-                  'evidence': 'Endpoint smoke checks skipped.',
-                  'evidence_items': [],
+                  'path': 'artifacts/job_123/src/api/app.py',
+                  'content_type': 'text/x-python',
+                  'purpose': 'lambda_handler',
                 },
               ],
+              'artifacts': {
+                'template_path': 'artifacts/job_123/template.yaml',
+                'handler_paths': ['artifacts/job_123/src/api/app.py'],
+                'resource_summaries': [
+                  {
+                    'logical_id': 'HttpApi',
+                    'resource_type': 'AWS::Serverless::HttpApi',
+                    'service_name': null,
+                    'reason': 'Expose synchronous service endpoints',
+                  },
+                  {
+                    'logical_id': 'ApiFunction',
+                    'resource_type': 'AWS::Serverless::Function',
+                    'service_name': 'api',
+                    'reason': 'Serve HTTP requests',
+                  },
+                ],
+              },
+              'handlers': [],
             });
         }
 
@@ -111,21 +119,44 @@ void main() {
         '/v1/jobs',
         '/v1/analyze/repo',
         '/v1/reason/architecture',
-        '/v1/deploy/preflight',
-        '/v1/verify',
+        '/v1/sam/generate',
       ]);
       expect(snapshot.runStatus, DashboardRunStatus.succeeded);
       expect(snapshot.jobId, 'job_123');
       expect(snapshot.architectureSummary, 'Split API and worker boundaries.');
       expect(snapshot.architectureResources, hasLength(2));
       expect(snapshot.architectureConnections, hasLength(1));
+      expect(snapshot.artifacts.first.name, 'template.yaml');
       expect(
-        snapshot.samPlanSummary,
-        contains('AWS credential preflight passed in us-east-1'),
+        snapshot.artifacts.first.downloadUrl,
+        endsWith('/v1/sam/artifacts/job_123/template.yaml'),
       );
-      expect(snapshot.stackFacts.any((fact) => fact.label == 'Verification'), isTrue);
+      expect(snapshot.samPlanSummary, contains('Generated template.yaml'));
+      expect(
+        snapshot.statusMessage,
+        'Analysis completed. Review the architecture and SAM plan before deployment.',
+      );
+      expect(
+        snapshot.stackFacts.any((fact) => fact.label == 'Verification'),
+        isFalse,
+      );
     },
   );
+
+  test('loadSnapshot starts without a fake repository URL', () async {
+    final repository = ApiDeployDashboardRepository(
+      DeploySamuraiApiClient(
+        httpClient: MockClient((request) async {
+          return http.Response('Not found', 404);
+        }),
+        baseUrl: 'http://127.0.0.1:8000/v1',
+      ),
+    );
+
+    final snapshot = await repository.loadSnapshot();
+
+    expect(snapshot.repoUrl, isEmpty);
+  });
 }
 
 http.Response _json(Map<String, Object?> body) {
