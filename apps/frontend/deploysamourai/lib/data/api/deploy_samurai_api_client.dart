@@ -54,6 +54,28 @@ class DeploySamuraiApiClient {
     return ArchitectureReasoningDto.fromJson(response);
   }
 
+  Future<DeploymentPreflightDto> runDeploymentPreflight() async {
+    final response = await _postJson('/deploy/preflight', {});
+    return DeploymentPreflightDto.fromJson(response);
+  }
+
+  Future<VerificationResultDto> verifyDeployment({
+    required String jobId,
+    required String deploymentId,
+    String? stackName,
+    String? baseUrl,
+    required List<String> expectedEndpoints,
+  }) async {
+    final response = await _postJson('/verify', {
+      'job_id': jobId,
+      'deployment_id': deploymentId,
+      'stack_name': stackName,
+      'base_url': baseUrl,
+      'expected_endpoints': expectedEndpoints,
+    });
+    return VerificationResultDto.fromJson(response);
+  }
+
   Future<Map<String, dynamic>> _postJson(
     String path,
     Map<String, dynamic> body,
@@ -312,6 +334,73 @@ class CommunicationFlowDto {
   final String target;
   final String style;
   final String transport;
+}
+
+class DeploymentPreflightDto {
+  const DeploymentPreflightDto({
+    required this.status,
+    required this.region,
+    this.accountId,
+    this.arn,
+    required this.message,
+  });
+
+  factory DeploymentPreflightDto.fromJson(Map<String, dynamic> json) {
+    return DeploymentPreflightDto(
+      status: json['status'] as String,
+      region: json['region'] as String,
+      accountId: json['account_id'] as String?,
+      arn: json['arn'] as String?,
+      message: json['message'] as String? ?? '',
+    );
+  }
+
+  final String status;
+  final String region;
+  final String? accountId;
+  final String? arn;
+  final String message;
+
+  bool get passed => status == 'passed';
+}
+
+class VerificationResultDto {
+  const VerificationResultDto({required this.status, required this.checks});
+
+  factory VerificationResultDto.fromJson(Map<String, dynamic> json) {
+    return VerificationResultDto(
+      status: json['status'] as String,
+      checks: (json['checks'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(VerificationCheckDto.fromJson)
+          .toList(growable: false),
+    );
+  }
+
+  final String status;
+  final List<VerificationCheckDto> checks;
+
+  bool get passed => status == 'passed';
+}
+
+class VerificationCheckDto {
+  const VerificationCheckDto({
+    required this.name,
+    required this.status,
+    this.evidence,
+  });
+
+  factory VerificationCheckDto.fromJson(Map<String, dynamic> json) {
+    return VerificationCheckDto(
+      name: json['name'] as String,
+      status: json['status'] as String,
+      evidence: json['evidence'] as String?,
+    );
+  }
+
+  final String name;
+  final String status;
+  final String? evidence;
 }
 
 List<String> _stringList(Object? value) {

@@ -65,6 +65,32 @@ void main() {
               ],
               'notes': ['Review boundaries before deployment.'],
             });
+          case '/v1/deploy/preflight':
+            return _json({
+              'status': 'passed',
+              'region': 'us-east-1',
+              'account_id': '123456789012',
+              'arn': 'arn:aws:iam::123456789012:user/deploy-samurai',
+              'message': 'AWS credentials are valid.',
+            });
+          case '/v1/verify':
+            return _json({
+              'status': 'passed',
+              'checks': [
+                {
+                  'name': 'stack_status',
+                  'status': 'skipped',
+                  'evidence': 'Stack status check skipped.',
+                  'evidence_items': [],
+                },
+                {
+                  'name': 'endpoint_smoke',
+                  'status': 'skipped',
+                  'evidence': 'Endpoint smoke checks skipped.',
+                  'evidence_items': [],
+                },
+              ],
+            });
         }
 
         return http.Response('Not found', 404);
@@ -85,12 +111,19 @@ void main() {
         '/v1/jobs',
         '/v1/analyze/repo',
         '/v1/reason/architecture',
+        '/v1/deploy/preflight',
+        '/v1/verify',
       ]);
       expect(snapshot.runStatus, DashboardRunStatus.succeeded);
       expect(snapshot.jobId, 'job_123');
       expect(snapshot.architectureSummary, 'Split API and worker boundaries.');
       expect(snapshot.architectureResources, hasLength(2));
       expect(snapshot.architectureConnections, hasLength(1));
+      expect(
+        snapshot.samPlanSummary,
+        contains('AWS credential preflight passed in us-east-1'),
+      );
+      expect(snapshot.stackFacts.any((fact) => fact.label == 'Verification'), isTrue);
     },
   );
 }

@@ -113,15 +113,23 @@ DashboardSnapshot buildAnalyzedDashboardSnapshot({
   required JobCreateDto job,
   required RepoAnalysisDto analysis,
   required ArchitectureReasoningDto architecture,
+  DeploymentPreflightDto? deploymentPreflight,
+  VerificationResultDto? verification,
 }) {
   final resources = _architectureResources(architecture);
   final connections = _architectureConnections(architecture);
+  final deploymentPassed = deploymentPreflight?.passed ?? true;
+  final verificationPassed = verification?.passed ?? true;
   return current.copyWith(
     jobId: job.jobId,
     connected: true,
-    runStatus: DashboardRunStatus.succeeded,
+    runStatus: deploymentPassed && verificationPassed
+        ? DashboardRunStatus.succeeded
+        : DashboardRunStatus.failed,
     elapsed: 'live',
-    statusMessage: 'Analysis completed from backend API.',
+    statusMessage: deploymentPassed && verificationPassed
+        ? 'Analysis, deployment preflight, and verification completed from backend API.'
+        : 'Backend workflow completed with deployment or verification warnings.',
     pipelineSteps: _pipeline([
       PipelineStepStatus.completed,
       PipelineStepStatus.completed,
@@ -129,8 +137,12 @@ DashboardSnapshot buildAnalyzedDashboardSnapshot({
       PipelineStepStatus.completed,
       PipelineStepStatus.locked,
       PipelineStepStatus.locked,
-      PipelineStepStatus.pending,
-      PipelineStepStatus.pending,
+      deploymentPassed
+          ? PipelineStepStatus.completed
+          : PipelineStepStatus.inProgress,
+      verificationPassed
+          ? PipelineStepStatus.completed
+          : PipelineStepStatus.inProgress,
     ]),
     architectureResources: resources,
     architectureConnections: connections,
@@ -145,6 +157,10 @@ DashboardSnapshot buildAnalyzedDashboardSnapshot({
       ),
       const StackFact(label: 'Region', value: 'us-east-1'),
       StackFact(label: 'Components', value: '${resources.length} services'),
+      if (deploymentPreflight != null)
+        StackFact(label: 'AWS Preflight', value: deploymentPreflight.status),
+      if (verification != null)
+        StackFact(label: 'Verification', value: verification.status),
     ],
     artifacts: const [],
     consoleLogs: [
@@ -161,10 +177,29 @@ DashboardSnapshot buildAnalyzedDashboardSnapshot({
       ),
       _log('INFO', 'Architecture type: ${architecture.architectureType}'),
       _log('INFO', 'Identified ${resources.length} candidate service(s)'),
+      if (deploymentPreflight != null)
+        _log('INFO', 'Deployment preflight: ${deploymentPreflight.message}'),
+      if (deploymentPreflight?.accountId != null)
+        _log('INFO', 'AWS account: ${deploymentPreflight!.accountId}'),
+      if (verification != null)
+        _log('INFO', 'Verification status: ${verification.status}'),
+      if (verification != null)
+        for (final check in verification.checks)
+          _log(
+            check.status == 'failed' ? 'ERROR' : 'INFO',
+            '${check.name}: ${check.evidence ?? check.status}',
+          ),
     ],
-    samPlanSummary: const [
-      'SAM generation API is not exposed yet',
-      'No deployment changes have been generated',
+    samPlanSummary: [
+      'SAM plan is approval-gated',
+      if (deploymentPreflight != null)
+        'AWS credential preflight ${deploymentPreflight.status} '
+            'in ${deploymentPreflight.region}',
+      if (verification != null)
+        'Verification returned ${verification.status} '
+            'with ${verification.checks.length} check(s)',
+      if (deploymentPreflight == null && verification == null)
+        'Deployment and verification APIs are not connected',
     ],
     architectureSummary: architecture.summary,
     notes: architecture.notes,

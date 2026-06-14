@@ -34,11 +34,19 @@ class ApiDeployDashboardRepository implements DeployDashboardRepository {
         jobId: job.jobId,
         analysis: analysis,
       );
+      final deploymentPreflight = await _apiClient.runDeploymentPreflight();
+      final verification = await _apiClient.verifyDeployment(
+        jobId: job.jobId,
+        deploymentId: 'preflight_${job.jobId}',
+        expectedEndpoints: const ['/health'],
+      );
       return buildAnalyzedDashboardSnapshot(
         current: initial,
         job: job,
         analysis: analysis,
         architecture: architecture,
+        deploymentPreflight: deploymentPreflight,
+        verification: verification,
       );
     } catch (error) {
       return buildFailedDashboardSnapshot(current: initial, error: error);

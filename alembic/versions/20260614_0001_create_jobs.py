@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 revision = "20260614_0001"
 down_revision = None
@@ -16,9 +17,16 @@ branch_labels = None
 depends_on = None
 
 
-job_mode = sa.Enum("advisor", "autonomous", name="job_mode")
-job_status = sa.Enum("queued", "running", "succeeded", "failed", name="job_status")
-deployment_target = sa.Enum("aws-sam", name="deployment_target")
+job_mode = postgresql.ENUM("advisor", "autonomous", name="job_mode", create_type=False)
+job_status = postgresql.ENUM(
+    "queued",
+    "running",
+    "succeeded",
+    "failed",
+    name="job_status",
+    create_type=False,
+)
+deployment_target = postgresql.ENUM("aws-sam", name="deployment_target", create_type=False)
 
 
 def upgrade() -> None:
