@@ -34,7 +34,7 @@
 
 ## Phase 4: Deployment
 - [x] Add AWS credential preflight checks
-- [ ] Implement SAM build and deploy execution
+- [x] Implement SAM build and deploy execution
 - [ ] Capture stack outputs and deployment logs
 - [ ] Add failure handling and retry strategy
 - [ ] Write integration tests for deploy helpers where practical

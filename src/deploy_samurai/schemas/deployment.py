@@ -12,6 +12,7 @@ class DeploymentRequest(BaseModel):
 class DeploymentCreateResponse(BaseModel):
     deployment_id: str
     status: Literal["in_progress", "failed", "succeeded"]
+    stack_name: str | None = None
 
 
 class DeploymentResult(BaseModel):
