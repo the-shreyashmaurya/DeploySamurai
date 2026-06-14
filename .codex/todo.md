@@ -23,7 +23,7 @@
 - [x] Expose repo analysis endpoint (`POST /v1/analyze/repo`)
 - [x] Expose architecture reasoning endpoint (`POST /v1/reason/architecture`)
 - [x] Wire LangGraph/OpenAI orchestration behind the reasoning endpoint
-- [ ] Return validated architecture summary payloads from the API
+- [x] Return validated architecture summary payloads from the API
 
 ## Phase 3: SAM Generation
 - [ ] Define SAM artifact model
