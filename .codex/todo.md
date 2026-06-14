@@ -44,7 +44,7 @@
 - [x] Add endpoint smoke tests
 - [x] Capture verification evidence
 - [x] Return machine-readable pass/fail results
-- [ ] Write tests for verification logic
+- [x] Write tests for verification logic
 
 ## Phase 6: UX and Polish
 - [ ] Add live progress streaming

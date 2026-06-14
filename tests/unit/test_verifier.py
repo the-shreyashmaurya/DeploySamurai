@@ -57,6 +57,7 @@ def test_run_verification_returns_failed_when_any_check_fails() -> None:
 
     assert response.status == "failed"
     assert response.checks[0].status == "failed"
+    assert response.checks[1].status == "passed"
 
 
 def test_run_verification_returns_skipped_checks_for_missing_runtime_clients() -> None:
@@ -70,3 +71,4 @@ def test_run_verification_returns_skipped_checks_for_missing_runtime_clients() -
 
     assert response.status == "passed"
     assert [check.status for check in response.checks] == ["skipped", "skipped"]
+    assert all(check.evidence_items for check in response.checks)
