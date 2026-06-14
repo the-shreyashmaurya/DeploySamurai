@@ -5,23 +5,32 @@ from dataclasses import dataclass
 from deploy_samurai.schemas.architecture import CommunicationFlow, ServiceCandidate
 from deploy_samurai.schemas.normalized_repo import NormalizedRepoMetadata
 
-MAX_SERVICE_CANDIDATES = 5
+MAX_SERVICE_CANDIDATES = 10
 
 DOMAIN_FOLDER_HINTS = {
     "api": "Expose synchronous HTTP endpoints and request routing",
+    "api-gateway": "Route external traffic to internal services",
     "auth": "Handle authentication, authorization, and identity concerns",
     "billing": "Handle billing, plans, payments, and subscription workflows",
+    "config": "Centralize runtime configuration for services",
+    "consul": "Provide service discovery and cluster DNS",
+    "discovery": "Provide service discovery and routing metadata",
+    "hystrix-dashboard": "Expose circuit breaker and resilience dashboards",
     "jobs": "Run asynchronous background jobs and scheduled tasks",
+    "movie": "Manage movie catalog data and movie APIs",
+    "movies-ui": "Serve the movie recommendation user interface",
     "notifications": "Send email, webhook, and user notification messages",
     "orders": "Manage order lifecycle and fulfillment workflows",
     "payments": "Handle payment collection and payment provider integration",
+    "recommendation": "Compute movie recommendations from user and movie signals",
     "users": "Manage user profiles and account data",
     "worker": "Process asynchronous work outside the request path",
     "workers": "Process asynchronous work outside the request path",
 }
 
 API_FRAMEWORKS = {"fastapi", "django", "flask", "express", "nextjs"}
-FRONTEND_FRAMEWORKS = {"react", "nextjs"}
+FRONTEND_FRAMEWORKS = {"react", "nextjs", "flutter", "static-site"}
+CONTAINER_FRAMEWORKS = {"spring-boot", "spring-cloud"}
 ASYNC_SERVICE_NAMES = {"jobs", "notifications", "worker", "workers"}
 
 
@@ -42,13 +51,7 @@ def infer_service_boundaries(metadata: NormalizedRepoMetadata) -> BoundaryHeuris
     )[:MAX_SERVICE_CANDIDATES]
 
     if not candidates:
-        candidates = [
-            ServiceCandidate(
-                name="application",
-                responsibility="Run the application with the detected repository entrypoints",
-                runtime="lambda",
-            )
-        ]
+        candidates = _fallback_candidates(metadata)
 
     flows = _infer_flows(candidates)
     notes = _build_notes(metadata, candidates)
@@ -74,10 +77,15 @@ def _framework_candidates(metadata: NormalizedRepoMetadata) -> list[ServiceCandi
         )
 
     if metadata.framework in FRONTEND_FRAMEWORKS:
+        responsibility = (
+            "Build and serve the Flutter web application as static assets"
+            if metadata.framework == "flutter"
+            else "Serve the web frontend and route browser traffic"
+        )
         candidates.append(
             ServiceCandidate(
                 name="frontend",
-                responsibility="Serve the web frontend and route browser traffic",
+                responsibility=responsibility,
                 runtime="s3-cloudfront",
             )
         )
@@ -91,16 +99,19 @@ def _folder_candidates(metadata: NormalizedRepoMetadata) -> list[ServiceCandidat
 
     for folder in sorted(top_level_folders):
         normalized = folder.lower().replace("_", "-")
+        if normalized.endswith("-microservice"):
+            normalized = normalized.removesuffix("-microservice")
         responsibility = DOMAIN_FOLDER_HINTS.get(normalized)
         if responsibility is None:
             continue
 
+        runtime = "container" if metadata.framework in CONTAINER_FRAMEWORKS else "lambda"
         candidates.append(
             ServiceCandidate(
                 name=_service_name(normalized),
                 responsibility=responsibility,
-                runtime="lambda",
-                data_store="dynamodb" if normalized not in ASYNC_SERVICE_NAMES else None,
+                runtime=runtime,
+                data_store=_data_store_for_service(normalized, runtime),
             )
         )
 
@@ -116,6 +127,34 @@ def _entrypoint_candidates(metadata: NormalizedRepoMetadata) -> list[ServiceCand
         ServiceCandidate(
             name="worker",
             responsibility="Process asynchronous jobs and long-running tasks",
+            runtime="lambda",
+        )
+    ]
+
+
+def _fallback_candidates(metadata: NormalizedRepoMetadata) -> list[ServiceCandidate]:
+    if metadata.framework == "static-site" or metadata.language in {"javascript", "typescript", "dart"}:
+        return [
+            ServiceCandidate(
+                name="frontend",
+                responsibility="Serve detected browser application assets",
+                runtime="s3-cloudfront",
+            )
+        ]
+
+    if metadata.framework in CONTAINER_FRAMEWORKS or metadata.language == "java":
+        return [
+            ServiceCandidate(
+                name="application",
+                responsibility="Run the Java Spring application as a containerized service",
+                runtime="container",
+            )
+        ]
+
+    return [
+        ServiceCandidate(
+            name="application",
+            responsibility="Run the application with the detected repository entrypoints",
             runtime="lambda",
         )
     ]
@@ -147,6 +186,17 @@ def _infer_flows(candidates: list[ServiceCandidate]) -> list[CommunicationFlow]:
             ),
         )
 
+    if "api-gateway" in names:
+        for target in sorted(names - {"api-gateway", "config", "consul", "discovery"}):
+            flows.append(
+                CommunicationFlow(
+                    source="api-gateway",
+                    target=target,
+                    style="sync",
+                    transport="http",
+                )
+            )
+
     return flows
 
 
@@ -174,3 +224,13 @@ def _service_name(value: str) -> str:
     if value == "workers":
         return "worker"
     return value
+
+
+def _data_store_for_service(service_name: str, runtime: str) -> str | None:
+    if runtime == "container":
+        return {
+            "movie": "mongodb",
+            "recommendation": "neo4j",
+            "users": "mysql",
+        }.get(service_name)
+    return "dynamodb" if service_name not in ASYNC_SERVICE_NAMES else None

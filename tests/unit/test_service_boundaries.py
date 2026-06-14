@@ -48,6 +48,60 @@ def test_infer_service_boundaries_for_nextjs_frontend_and_api() -> None:
     }
 
 
+def test_infer_service_boundaries_for_flutter_frontend() -> None:
+    metadata = NormalizedRepoMetadata(
+        name="flutter-web",
+        language="dart",
+        framework="flutter",
+        package_manager="pub",
+        folder_paths=["lib", "web"],
+        entrypoints=["lib/main.dart", "web/index.html"],
+    )
+
+    result = infer_service_boundaries(metadata)
+
+    assert [service.name for service in result.service_candidates] == ["frontend"]
+    assert result.service_candidates[0].runtime == "s3-cloudfront"
+    assert result.communication_flows == []
+
+
+def test_infer_service_boundaries_for_spring_cloud_microservices() -> None:
+    metadata = NormalizedRepoMetadata(
+        name="spring-cloud-microservice-example",
+        language="java",
+        framework="spring-cloud",
+        package_manager="maven",
+        folder_paths=[
+            "api-gateway-microservice",
+            "config-microservice",
+            "discovery-microservice",
+            "movie-microservice",
+            "recommendation-microservice",
+            "users-microservice",
+        ],
+        entrypoints=["pom.xml"],
+    )
+
+    result = infer_service_boundaries(metadata)
+
+    assert [service.name for service in result.service_candidates] == [
+        "api-gateway",
+        "config",
+        "discovery",
+        "movie",
+        "recommendation",
+        "users",
+    ]
+    assert all(service.runtime == "container" for service in result.service_candidates)
+    assert result.service_candidates[3].data_store == "mongodb"
+    assert result.communication_flows[0].model_dump(by_alias=True) == {
+        "from": "api-gateway",
+        "to": "movie",
+        "style": "sync",
+        "transport": "http",
+    }
+
+
 def test_infer_service_boundaries_falls_back_to_application_service() -> None:
     metadata = NormalizedRepoMetadata(
         name="unknown",
@@ -72,11 +126,14 @@ def test_infer_service_boundaries_limits_candidate_count() -> None:
 
     result = infer_service_boundaries(metadata)
 
-    assert len(result.service_candidates) == 5
+    assert len(result.service_candidates) == 8
     assert [service.name for service in result.service_candidates] == [
         "api",
         "auth",
         "billing",
         "jobs",
         "notifications",
+        "orders",
+        "payments",
+        "users",
     ]

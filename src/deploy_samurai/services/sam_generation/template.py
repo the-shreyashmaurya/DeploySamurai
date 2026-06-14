@@ -59,37 +59,37 @@ def generate_sam_template(
 
 
 def render_sam_template(architecture: ArchitectureReasoningResponse) -> str:
+    lambda_services = _lambda_services(architecture.service_candidates)
     template = {
         "AWSTemplateFormatVersion": "2010-09-09",
         "Transform": "AWS::Serverless-2016-10-31",
         "Description": architecture.summary or "DeploySamurai generated SAM scaffold.",
-        "Globals": {
+    }
+    if lambda_services:
+        template["Globals"] = {
             "Function": {
                 "Timeout": 30,
                 "Runtime": "python3.12",
                 "MemorySize": 256,
             }
-        },
-        "Resources": _template_resources(architecture),
-        "Outputs": {
-            "ApiUrl": {
-                "Description": "HTTP API endpoint URL",
-                "Value": {"Fn::Sub": "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"},
-            }
-        },
-    }
+        }
+    if _container_services(architecture.service_candidates):
+        template["Parameters"] = _container_parameters()
+    template["Resources"] = _template_resources(architecture)
+    template["Outputs"] = _template_outputs(architecture)
     return yaml.safe_dump(template, sort_keys=False)
 
 
 def _template_resources(architecture: ArchitectureReasoningResponse) -> dict[str, object]:
-    resources: dict[str, object] = {
-        "HttpApi": {
+    resources: dict[str, object] = {}
+
+    if _lambda_services(architecture.service_candidates):
+        resources["HttpApi"] = {
             "Type": "AWS::Serverless::HttpApi",
             "Properties": {
                 "StageName": "prod",
             },
         }
-    }
 
     for service in _lambda_services(architecture.service_candidates):
         logical_id = _function_logical_id(service.name)
@@ -148,7 +148,24 @@ def _template_resources(architecture: ArchitectureReasoningResponse) -> dict[str
 
     for service in architecture.service_candidates:
         if service.runtime == "s3-cloudfront":
-            resources[_bucket_logical_id(service.name)] = _s3_bucket(service.name)
+            bucket_id = _bucket_logical_id(service.name)
+            distribution_id = _distribution_logical_id(service.name)
+            resources[bucket_id] = _s3_bucket(service.name)
+            resources[distribution_id] = _cloudfront_distribution(service.name, bucket_id)
+
+    container_services = _container_services(architecture.service_candidates)
+    if container_services:
+        resources["EcsCluster"] = {"Type": "AWS::ECS::Cluster"}
+        resources["ContainerTaskExecutionRole"] = _container_task_execution_role()
+        for service in container_services:
+            repository_id = _repository_logical_id(service.name)
+            log_group_id = _log_group_logical_id(service.name)
+            task_id = _task_definition_logical_id(service.name)
+            service_id = _ecs_service_logical_id(service.name)
+            resources[repository_id] = _ecr_repository(service.name)
+            resources[log_group_id] = _log_group(service.name)
+            resources[task_id] = _task_definition(service, repository_id, log_group_id)
+            resources[service_id] = _ecs_service(service, task_id)
 
     for flow in _transport_flows(architecture.communication_flows, "eventbridge"):
         resources[_eventbridge_rule_logical_id(flow.source, flow.target)] = _eventbridge_rule(flow)
@@ -156,14 +173,49 @@ def _template_resources(architecture: ArchitectureReasoningResponse) -> dict[str
     return resources
 
 
+def _template_outputs(architecture: ArchitectureReasoningResponse) -> dict[str, object]:
+    outputs: dict[str, object] = {}
+    if _lambda_services(architecture.service_candidates):
+        outputs["ApiUrl"] = {
+            "Description": "HTTP API endpoint URL",
+            "Value": {"Fn::Sub": "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"},
+        }
+
+    for service in architecture.service_candidates:
+        if service.runtime == "s3-cloudfront":
+            outputs[f"{_pascal_case(service.name)}BucketName"] = {
+                "Description": f"S3 bucket for {service.name} static assets",
+                "Value": {"Ref": _bucket_logical_id(service.name)},
+            }
+            outputs[f"{_pascal_case(service.name)}DistributionDomainName"] = {
+                "Description": f"CloudFront domain for {service.name}",
+                "Value": {"Fn::GetAtt": [_distribution_logical_id(service.name), "DomainName"]},
+            }
+
+    if _container_services(architecture.service_candidates):
+        outputs["ClusterName"] = {
+            "Description": "ECS cluster for containerized services",
+            "Value": {"Ref": "EcsCluster"},
+        }
+        for service in _container_services(architecture.service_candidates):
+            outputs[f"{_pascal_case(service.name)}ImageRepository"] = {
+                "Description": f"ECR repository URI for {service.name}",
+                "Value": {"Fn::GetAtt": [_repository_logical_id(service.name), "RepositoryUri"]},
+            }
+
+    return outputs
+
+
 def _resource_summaries(architecture: ArchitectureReasoningResponse) -> list[SamResourceSummary]:
-    summaries = [
-        SamResourceSummary(
-            logical_id="HttpApi",
-            resource_type="AWS::Serverless::HttpApi",
-            reason="Expose synchronous service endpoints through API Gateway",
+    summaries = []
+    if _lambda_services(architecture.service_candidates):
+        summaries.append(
+            SamResourceSummary(
+                logical_id="HttpApi",
+                resource_type="AWS::Serverless::HttpApi",
+                reason="Expose synchronous service endpoints through API Gateway",
+            )
         )
-    ]
 
     for service in _lambda_services(architecture.service_candidates):
         summaries.append(
@@ -186,15 +238,69 @@ def _resource_summaries(architecture: ArchitectureReasoningResponse) -> list[Sam
 
     for service in architecture.service_candidates:
         if service.runtime == "s3-cloudfront":
+            bucket_id = _bucket_logical_id(service.name)
             summaries.append(
                 SamResourceSummary(
-                    logical_id=_bucket_logical_id(service.name),
+                    logical_id=bucket_id,
                     resource_type="AWS::S3::Bucket",
                     service_name=service.name,
                     reason=f"Store static assets for {service.name}",
                 )
             )
+            summaries.append(
+                SamResourceSummary(
+                    logical_id=_distribution_logical_id(service.name),
+                    resource_type="AWS::CloudFront::Distribution",
+                    service_name=service.name,
+                    reason=f"Serve {service.name} assets globally over HTTPS",
+                )
+            )
 
+    container_services = _container_services(architecture.service_candidates)
+    if container_services:
+        summaries.append(
+            SamResourceSummary(
+                logical_id="EcsCluster",
+                resource_type="AWS::ECS::Cluster",
+                reason="Run Spring Cloud services as containerized workloads",
+            )
+        )
+        summaries.append(
+            SamResourceSummary(
+                logical_id="ContainerTaskExecutionRole",
+                resource_type="AWS::IAM::Role",
+                reason="Allow ECS tasks to pull images and write logs",
+            )
+        )
+        for service in container_services:
+            summaries.extend(
+                [
+                    SamResourceSummary(
+                        logical_id=_repository_logical_id(service.name),
+                        resource_type="AWS::ECR::Repository",
+                        service_name=service.name,
+                        reason=f"Store container images for {service.name}",
+                    ),
+                    SamResourceSummary(
+                        logical_id=_task_definition_logical_id(service.name),
+                        resource_type="AWS::ECS::TaskDefinition",
+                        service_name=service.name,
+                        reason=service.responsibility,
+                    ),
+                    SamResourceSummary(
+                        logical_id=_ecs_service_logical_id(service.name),
+                        resource_type="AWS::ECS::Service",
+                        service_name=service.name,
+                        reason=f"Run one desired task for {service.name} on Fargate",
+                    ),
+                    SamResourceSummary(
+                        logical_id=_log_group_logical_id(service.name),
+                        resource_type="AWS::Logs::LogGroup",
+                        service_name=service.name,
+                        reason=f"Capture container logs for {service.name}",
+                    ),
+                ]
+            )
     for flow in _transport_flows(architecture.communication_flows, "sqs"):
         summaries.append(
             SamResourceSummary(
@@ -262,6 +368,10 @@ def _lambda_services(candidates: list[ServiceCandidate]) -> list[ServiceCandidat
     return [service for service in candidates if service.runtime == "lambda"]
 
 
+def _container_services(candidates: list[ServiceCandidate]) -> list[ServiceCandidate]:
+    return [service for service in candidates if service.runtime == "container"]
+
+
 def _function_logical_id(service_name: str) -> str:
     return f"{_pascal_case(service_name)}Function"
 
@@ -272,6 +382,26 @@ def _table_logical_id(service_name: str) -> str:
 
 def _bucket_logical_id(service_name: str) -> str:
     return f"{_pascal_case(service_name)}Bucket"
+
+
+def _distribution_logical_id(service_name: str) -> str:
+    return f"{_pascal_case(service_name)}Distribution"
+
+
+def _repository_logical_id(service_name: str) -> str:
+    return f"{_pascal_case(service_name)}Repository"
+
+
+def _task_definition_logical_id(service_name: str) -> str:
+    return f"{_pascal_case(service_name)}TaskDefinition"
+
+
+def _ecs_service_logical_id(service_name: str) -> str:
+    return f"{_pascal_case(service_name)}Service"
+
+
+def _log_group_logical_id(service_name: str) -> str:
+    return f"{_pascal_case(service_name)}LogGroup"
 
 
 def _queue_logical_id(service_name: str) -> str:
@@ -311,8 +441,158 @@ def _s3_bucket(service_name: str) -> dict[str, object]:
         "Type": "AWS::S3::Bucket",
         "Properties": {
             "BucketName": {"Fn::Sub": f"${{AWS::StackName}}-{service_name}-assets"},
+            "VersioningConfiguration": {"Status": "Enabled"},
         },
     }
+
+
+def _cloudfront_distribution(service_name: str, bucket_logical_id: str) -> dict[str, object]:
+    origin_id = f"{_pascal_case(service_name)}S3Origin"
+    return {
+        "Type": "AWS::CloudFront::Distribution",
+        "Properties": {
+            "DistributionConfig": {
+                "Enabled": True,
+                "DefaultRootObject": "index.html",
+                "Origins": [
+                    {
+                        "Id": origin_id,
+                        "DomainName": {"Fn::GetAtt": [bucket_logical_id, "RegionalDomainName"]},
+                        "S3OriginConfig": {},
+                    }
+                ],
+                "DefaultCacheBehavior": {
+                    "TargetOriginId": origin_id,
+                    "ViewerProtocolPolicy": "redirect-to-https",
+                    "AllowedMethods": ["GET", "HEAD", "OPTIONS"],
+                    "CachedMethods": ["GET", "HEAD"],
+                    "ForwardedValues": {"QueryString": False},
+                },
+            }
+        },
+    }
+
+
+def _container_parameters() -> dict[str, object]:
+    return {
+        "VpcId": {
+            "Type": "AWS::EC2::VPC::Id",
+            "Description": "VPC where ECS Fargate services will run",
+        },
+        "SubnetIds": {
+            "Type": "List<AWS::EC2::Subnet::Id>",
+            "Description": "Subnets for ECS Fargate tasks",
+        },
+    }
+
+
+def _container_task_execution_role() -> dict[str, object]:
+    return {
+        "Type": "AWS::IAM::Role",
+        "Properties": {
+            "AssumeRolePolicyDocument": {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {"Service": "ecs-tasks.amazonaws.com"},
+                        "Action": "sts:AssumeRole",
+                    }
+                ],
+            },
+            "ManagedPolicyArns": [
+                "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+            ],
+        },
+    }
+
+
+def _ecr_repository(service_name: str) -> dict[str, object]:
+    return {
+        "Type": "AWS::ECR::Repository",
+        "Properties": {
+            "RepositoryName": {"Fn::Sub": f"${{AWS::StackName}}/{service_name}"},
+            "ImageScanningConfiguration": {"ScanOnPush": True},
+        },
+    }
+
+
+def _log_group(service_name: str) -> dict[str, object]:
+    return {
+        "Type": "AWS::Logs::LogGroup",
+        "Properties": {
+            "LogGroupName": {"Fn::Sub": f"/ecs/${{AWS::StackName}}/{service_name}"},
+            "RetentionInDays": 14,
+        },
+    }
+
+
+def _task_definition(
+    service: ServiceCandidate,
+    repository_logical_id: str,
+    log_group_logical_id: str,
+) -> dict[str, object]:
+    return {
+        "Type": "AWS::ECS::TaskDefinition",
+        "Properties": {
+            "RequiresCompatibilities": ["FARGATE"],
+            "NetworkMode": "awsvpc",
+            "Cpu": "512",
+            "Memory": "1024",
+            "ExecutionRoleArn": {"Fn::GetAtt": ["ContainerTaskExecutionRole", "Arn"]},
+            "ContainerDefinitions": [
+                {
+                    "Name": service.name,
+                    "Image": {
+                        "Fn::Sub": [
+                            "${RepositoryUri}:latest",
+                            {
+                                "RepositoryUri": {
+                                    "Fn::GetAtt": [repository_logical_id, "RepositoryUri"]
+                                }
+                            },
+                        ]
+                    },
+                    "Essential": True,
+                    "PortMappings": [{"ContainerPort": 8080, "Protocol": "tcp"}],
+                    "Environment": _container_environment(service),
+                    "LogConfiguration": {
+                        "LogDriver": "awslogs",
+                        "Options": {
+                            "awslogs-group": {"Ref": log_group_logical_id},
+                            "awslogs-region": {"Ref": "AWS::Region"},
+                            "awslogs-stream-prefix": service.name,
+                        },
+                    },
+                }
+            ],
+        },
+    }
+
+
+def _ecs_service(service: ServiceCandidate, task_definition_logical_id: str) -> dict[str, object]:
+    return {
+        "Type": "AWS::ECS::Service",
+        "Properties": {
+            "Cluster": {"Ref": "EcsCluster"},
+            "DesiredCount": 1,
+            "LaunchType": "FARGATE",
+            "TaskDefinition": {"Ref": task_definition_logical_id},
+            "NetworkConfiguration": {
+                "AwsvpcConfiguration": {
+                    "AssignPublicIp": "ENABLED",
+                    "Subnets": {"Ref": "SubnetIds"},
+                }
+            },
+        },
+    }
+
+
+def _container_environment(service: ServiceCandidate) -> list[dict[str, str]]:
+    values = [{"Name": "SPRING_PROFILES_ACTIVE", "Value": "aws"}]
+    if service.data_store:
+        values.append({"Name": "DEPLOYSAMURAI_DATA_STORE_HINT", "Value": service.data_store})
+    return values
 
 
 def _sqs_queue(service_name: str) -> dict[str, object]:

@@ -26,7 +26,7 @@ def test_generate_architecture_summary_returns_validated_response() -> None:
     response = generate_architecture_summary(metadata)
 
     assert response.architecture_type == "microservices"
-    assert response.summary.startswith("demo-api is best approached as a microservices")
+    assert response.summary.startswith("demo-api is best approached as microservices")
     assert [service.name for service in response.service_candidates] == ["api", "worker"]
     assert response.communication_flows[0].style == "async"
     assert "At least one asynchronous flow suggests a separate worker boundary." in response.notes

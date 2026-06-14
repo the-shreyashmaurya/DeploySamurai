@@ -48,5 +48,11 @@ def _detect_entrypoints(root: Path) -> list[str]:
         "src/index.js",
         "app/page.tsx",
         "pages/index.tsx",
+        "lib/main.dart",
+        "web/index.html",
+        "index.html",
+        "pom.xml",
+        "build.gradle",
+        "build.gradle.kts",
     ]
     return [path for path in candidates if (root / path).is_file()]

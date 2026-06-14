@@ -5,14 +5,18 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-SupportedLanguage = Literal["python", "javascript", "typescript", "unknown"]
+SupportedLanguage = Literal["python", "javascript", "typescript", "dart", "java", "unknown"]
 SupportedFramework = Literal[
     "fastapi",
     "django",
     "flask",
     "nextjs",
     "react",
+    "flutter",
     "express",
+    "spring-boot",
+    "spring-cloud",
+    "static-site",
     "unknown",
 ]
 SupportedPackageManager = Literal[
@@ -23,6 +27,9 @@ SupportedPackageManager = Literal[
     "pnpm",
     "yarn",
     "npm",
+    "pub",
+    "maven",
+    "gradle",
     "unknown",
 ]
 

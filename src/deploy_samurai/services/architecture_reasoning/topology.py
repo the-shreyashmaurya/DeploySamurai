@@ -23,6 +23,7 @@ def decide_architecture_type(
     service_count = len(service_candidates)
     has_async_flow = any(flow.style == "async" for flow in communication_flows)
     has_clear_domains = service_count >= 3
+    has_containerized_services = any(service.runtime == "container" for service in service_candidates)
 
     if service_count <= 1:
         return ArchitectureTypeDecision(
@@ -31,6 +32,18 @@ def decide_architecture_type(
                 "Only one candidate service was detected.",
                 "Start with a modular monolith and keep boundaries internal.",
             ],
+        )
+
+    if has_containerized_services and service_count >= 3:
+        reasons = [
+            "Multiple containerized service candidates were detected.",
+            "The repository shape matches an independently deployable microservice system.",
+        ]
+        if not metadata.has_tests:
+            reasons.append("Repository tests were not detected; deployment confidence is lower.")
+        return ArchitectureTypeDecision(
+            architecture_type="microservices",
+            rationale=reasons,
         )
 
     if not metadata.has_tests:

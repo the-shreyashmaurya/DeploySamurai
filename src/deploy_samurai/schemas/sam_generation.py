@@ -9,8 +9,15 @@ SamResourceType = Literal[
     "AWS::Serverless::HttpApi",
     "AWS::DynamoDB::Table",
     "AWS::S3::Bucket",
+    "AWS::CloudFront::Distribution",
     "AWS::SQS::Queue",
     "AWS::Events::Rule",
+    "AWS::ECS::Cluster",
+    "AWS::ECS::TaskDefinition",
+    "AWS::ECS::Service",
+    "AWS::ECR::Repository",
+    "AWS::Logs::LogGroup",
+    "AWS::IAM::Role",
 ]
 
 

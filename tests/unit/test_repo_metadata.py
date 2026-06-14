@@ -60,6 +60,38 @@ def test_extract_repo_metadata_detects_test_files_without_tests_directory(tmp_pa
     assert metadata.structure.entrypoints == ["server.js"]
 
 
+def test_extract_repo_metadata_detects_flutter_entrypoint(tmp_path: Path) -> None:
+    repo_path = tmp_path / "mobile-web"
+    repo_path.mkdir()
+    (repo_path / "pubspec.yaml").write_text("name: mobile_web\n", encoding="utf-8")
+    (repo_path / "lib").mkdir()
+    (repo_path / "lib" / "main.dart").write_text("void main() {}", encoding="utf-8")
+    (repo_path / "web").mkdir()
+    (repo_path / "web" / "index.html").write_text("<html></html>", encoding="utf-8")
+
+    metadata = extract_repo_metadata(repo_path)
+
+    assert metadata.repo_summary.language == "dart"
+    assert metadata.repo_summary.framework == "flutter"
+    assert metadata.repo_summary.package_manager == "pub"
+    assert metadata.structure.entrypoints == ["lib/main.dart", "web/index.html"]
+
+
+def test_extract_repo_metadata_detects_maven_entrypoint(tmp_path: Path) -> None:
+    repo_path = tmp_path / "spring-cloud-demo"
+    repo_path.mkdir()
+    (repo_path / "pom.xml").write_text("<project>spring-cloud</project>", encoding="utf-8")
+    (repo_path / "api-gateway-microservice").mkdir()
+    (repo_path / "movie-microservice").mkdir()
+
+    metadata = extract_repo_metadata(repo_path)
+
+    assert metadata.repo_summary.language == "java"
+    assert metadata.repo_summary.framework == "spring-cloud"
+    assert metadata.repo_summary.package_manager == "maven"
+    assert metadata.structure.entrypoints == ["pom.xml"]
+
+
 def test_extract_repo_metadata_requires_existing_directory(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         extract_repo_metadata(tmp_path / "missing")

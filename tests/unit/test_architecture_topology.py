@@ -71,6 +71,21 @@ def test_decide_architecture_type_selects_microservices_for_clear_domains() -> N
     assert decision.rationale == ["Multiple independently deployable service candidates were detected."]
 
 
+def test_decide_architecture_type_selects_microservices_for_containerized_services_without_tests() -> None:
+    decision = decide_architecture_type(
+        NormalizedRepoMetadata(name="spring-cloud-demo", framework="spring-cloud"),
+        [
+            ServiceCandidate(name="api-gateway", responsibility="Route traffic", runtime="container"),
+            ServiceCandidate(name="movie", responsibility="Movie API", runtime="container"),
+            ServiceCandidate(name="users", responsibility="User API", runtime="container"),
+        ],
+        [],
+    )
+
+    assert decision.architecture_type == "microservices"
+    assert "Multiple containerized service candidates were detected." in decision.rationale
+
+
 def test_decide_architecture_type_keeps_simple_two_service_repo_modular() -> None:
     decision = decide_architecture_type(
         NormalizedRepoMetadata(name="two-part-app", has_tests=True),

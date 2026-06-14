@@ -36,14 +36,22 @@ def detect_stack(repo_path: Path) -> StackDetection:
 
 
 def _detect_language(root: Path, root_files: set[str]) -> str | None:
+    if {"pubspec.yaml", "pubspec.lock"} & root_files:
+        return "dart"
     if {"pyproject.toml", "requirements.txt", "setup.py", "Pipfile"} & root_files:
         return "python"
     if {"package.json", "tsconfig.json"} & root_files:
         return "typescript" if _has_typescript_files(root) else "javascript"
+    if {"pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle"} & root_files:
+        return "java"
     if _has_file_with_suffix(root, ".py"):
         return "python"
     if _has_typescript_files(root):
         return "typescript"
+    if _has_file_with_suffix(root, ".dart"):
+        return "dart"
+    if _has_file_with_suffix(root, ".java"):
+        return "java"
     if _has_file_with_suffix(root, ".js"):
         return "javascript"
     return None
@@ -58,6 +66,12 @@ def _detect_package_manager(root_files: set[str]) -> str | None:
         return "pipenv"
     if "requirements.txt" in root_files:
         return "pip"
+    if "pubspec.lock" in root_files or "pubspec.yaml" in root_files:
+        return "pub"
+    if "pom.xml" in root_files:
+        return "maven"
+    if "build.gradle" in root_files or "build.gradle.kts" in root_files:
+        return "gradle"
     if "pnpm-lock.yaml" in root_files:
         return "pnpm"
     if "yarn.lock" in root_files:
@@ -78,6 +92,8 @@ def _detect_framework(
 ) -> str | None:
     dependencies = package_dependencies | pyproject_dependencies
 
+    if (root / "pubspec.yaml").is_file() or (root / "lib" / "main.dart").is_file():
+        return "flutter"
     if "fastapi" in dependencies:
         return "fastapi"
     if {"django", "flask"} & dependencies:
@@ -88,6 +104,14 @@ def _detect_framework(
         return "react"
     if "express" in dependencies:
         return "express"
+    if {"index.html", "404.html"} & {path.name for path in root.iterdir() if path.is_file()}:
+        return "static-site"
+    if _contains_text(root, "*.xml", "spring-cloud") or _contains_text(root, "*.gradle", "spring-cloud"):
+        return "spring-cloud"
+    if _contains_text(root, "*.java", "@SpringBootApplication"):
+        return "spring-boot"
+    if _contains_text(root, "*.xml", "spring-boot") or _contains_text(root, "*.gradle", "spring-boot"):
+        return "spring-boot"
 
     if _contains_text(root, "*.py", "FastAPI("):
         return "fastapi"

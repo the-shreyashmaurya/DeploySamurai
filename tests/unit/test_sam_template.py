@@ -88,6 +88,81 @@ def test_render_sam_template_maps_supported_serverless_resources() -> None:
     }
 
 
+def test_render_sam_template_creates_static_site_resources_without_lambda() -> None:
+    template = render_sam_template(
+        ArchitectureReasoningResponse(
+            architecture_type="modular_monolith",
+            summary="Recommended static frontend hosting.",
+            service_candidates=[
+                ServiceCandidate(
+                    name="frontend",
+                    responsibility="Build and serve the Flutter web application as static assets",
+                    runtime="s3-cloudfront",
+                )
+            ],
+        )
+    )
+
+    parsed = yaml.safe_load(template)
+    resources = parsed["Resources"]
+
+    assert "Globals" not in parsed
+    assert "HttpApi" not in resources
+    assert "FrontendFunction" not in resources
+    assert resources["FrontendBucket"]["Type"] == "AWS::S3::Bucket"
+    assert resources["FrontendDistribution"]["Type"] == "AWS::CloudFront::Distribution"
+    assert parsed["Outputs"]["FrontendDistributionDomainName"]["Description"] == (
+        "CloudFront domain for frontend"
+    )
+
+
+def test_render_sam_template_creates_ecs_resources_for_container_services() -> None:
+    template = render_sam_template(
+        ArchitectureReasoningResponse(
+            architecture_type="microservices",
+            summary="Recommended Spring Cloud container deployment.",
+            service_candidates=[
+                ServiceCandidate(
+                    name="api-gateway",
+                    responsibility="Route external traffic to internal services",
+                    runtime="container",
+                ),
+                ServiceCandidate(
+                    name="movie",
+                    responsibility="Manage movie catalog data and movie APIs",
+                    runtime="container",
+                    data_store="mongodb",
+                ),
+            ],
+            communication_flows=[
+                CommunicationFlow(
+                    source="api-gateway",
+                    target="movie",
+                    style="sync",
+                    transport="http",
+                )
+            ],
+        )
+    )
+
+    parsed = yaml.safe_load(template)
+    resources = parsed["Resources"]
+
+    assert "Globals" not in parsed
+    assert parsed["Parameters"]["VpcId"]["Type"] == "AWS::EC2::VPC::Id"
+    assert resources["EcsCluster"]["Type"] == "AWS::ECS::Cluster"
+    assert resources["ApiGatewayRepository"]["Type"] == "AWS::ECR::Repository"
+    assert resources["ApiGatewayTaskDefinition"]["Type"] == "AWS::ECS::TaskDefinition"
+    assert resources["ApiGatewayService"]["Type"] == "AWS::ECS::Service"
+    assert resources["MovieTaskDefinition"]["Properties"]["ContainerDefinitions"][0]["Environment"] == [
+        {"Name": "SPRING_PROFILES_ACTIVE", "Value": "aws"},
+        {"Name": "DEPLOYSAMURAI_DATA_STORE_HINT", "Value": "mongodb"},
+    ]
+    assert parsed["Outputs"]["ApiGatewayImageRepository"]["Description"] == (
+        "ECR repository URI for api-gateway"
+    )
+
+
 def test_generate_sam_template_writes_template_artifact(tmp_path: Path) -> None:
     response = generate_sam_template(
         SamGenerationRequest(
@@ -166,6 +241,7 @@ def test_generate_sam_template_renders_complete_iac_recommendation(tmp_path: Pat
         "ApiTable": "AWS::DynamoDB::Table",
         "WorkerFunction": "AWS::Serverless::Function",
         "FrontendBucket": "AWS::S3::Bucket",
+        "FrontendDistribution": "AWS::CloudFront::Distribution",
         "WorkerQueue": "AWS::SQS::Queue",
     }
     assert {file.purpose for file in response.files} == {"sam_template", "lambda_handler"}

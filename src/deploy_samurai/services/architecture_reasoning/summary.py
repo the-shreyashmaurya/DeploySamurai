@@ -108,8 +108,10 @@ def _deterministic_summary(
     service_count: int,
 ) -> str:
     architecture_label = topology.architecture_type.replace("_", " ")
+    article = "a" if topology.architecture_type == "modular_monolith" else ""
+    architecture_phrase = f"{article} {architecture_label}".strip()
     return (
-        f"{metadata.name} is best approached as a {architecture_label} for now. "
+        f"{metadata.name} is best approached as {architecture_phrase} for now. "
         f"The analyzer found {service_count} candidate service boundary or boundaries "
         f"from the {metadata.framework} {metadata.language} repository metadata."
     )

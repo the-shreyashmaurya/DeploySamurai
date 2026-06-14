@@ -3,9 +3,20 @@ from __future__ import annotations
 from deploy_samurai.schemas.normalized_repo import NormalizedRepoMetadata
 from deploy_samurai.schemas.repo_analysis import RepoAnalysisResponse
 
-KNOWN_FRAMEWORKS = {"fastapi", "django", "flask", "nextjs", "react", "express"}
-KNOWN_LANGUAGES = {"python", "javascript", "typescript"}
-KNOWN_PACKAGE_MANAGERS = {"uv", "poetry", "pipenv", "pip", "pnpm", "yarn", "npm"}
+KNOWN_FRAMEWORKS = {
+    "fastapi",
+    "django",
+    "flask",
+    "nextjs",
+    "react",
+    "flutter",
+    "express",
+    "spring-boot",
+    "spring-cloud",
+    "static-site",
+}
+KNOWN_LANGUAGES = {"python", "javascript", "typescript", "dart", "java"}
+KNOWN_PACKAGE_MANAGERS = {"uv", "poetry", "pipenv", "pip", "pnpm", "yarn", "npm", "pub", "maven", "gradle"}
 
 
 def normalize_repo_metadata(analysis: RepoAnalysisResponse) -> NormalizedRepoMetadata:
