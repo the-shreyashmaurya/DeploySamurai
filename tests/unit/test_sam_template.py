@@ -53,4 +53,8 @@ def test_generate_sam_template_writes_template_artifact(tmp_path: Path) -> None:
     assert template_path.exists()
     assert response.artifacts.template_path == template_path.as_posix()
     assert response.artifacts.resource_summaries[0].logical_id == "HttpApi"
-    assert response.handlers[0].handler_path == (tmp_path / "job_123" / "src/api/app.py").as_posix()
+    handler_path = tmp_path / "job_123" / "src/api/app.py"
+    assert response.handlers[0].handler_path == handler_path.as_posix()
+    assert handler_path.exists()
+    assert '"service": "api"' in handler_path.read_text(encoding="utf-8")
+    assert response.files[1].purpose == "lambda_handler"
