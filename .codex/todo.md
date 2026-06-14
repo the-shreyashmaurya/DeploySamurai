@@ -27,7 +27,7 @@
 
 ## Phase 3: SAM Generation
 - [x] Define SAM artifact model
-- [ ] Generate `template.yaml`
+- [x] Generate `template.yaml`
 - [ ] Generate Lambda handler scaffolds when needed
 - [ ] Add resource mapping for API Gateway, DynamoDB, S3, SQS, and EventBridge
 - [ ] Write tests for rendered SAM output
