@@ -18,9 +18,14 @@ class Settings(BaseSettings):
     repo_workspace_root: Path = Path(".workspaces/repos")
     artifact_root: Path = Path("artifacts")
     aws_region: str = "us-east-1"
+    cors_allow_origins: str = "http://localhost:3000,http://localhost:8077,http://127.0.0.1:8077"
     openai_api_key: str | None = None
     openai_model: str | None = None
     openai_timeout_seconds: int = 30
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
 
 
 @lru_cache
