@@ -1,15 +1,15 @@
 # DeploySamurai Todo
 
 ## Phase 0: Foundation
-- [ ] Create project workspace structure under `.codex`
-- [ ] Add Python project bootstrap with `uv`
-- [ ] Define dependency and lockfile workflow
-- [ ] Set up formatter and linter configuration
-- [ ] Set up test runner configuration
+- [x] Create project workspace structure under `.codex`
+- [x] Add Python project bootstrap with `uv`
+- [x] Define dependency and lockfile workflow
+- [x] Set up formatter and linter configuration
+- [x] Set up test runner configuration
 
 ## Phase 1: Repo Intake
-- [ ] Validate GitHub repo URL input
-- [ ] Implement repo cloning with safe temp workspace handling
+- [x] Validate GitHub repo URL input
+- [x] Implement repo cloning with safe temp workspace handling
 - [ ] Extract root files and folder tree
 - [ ] Detect language, framework, and package manager
 - [ ] Write unit tests for repo metadata extraction
