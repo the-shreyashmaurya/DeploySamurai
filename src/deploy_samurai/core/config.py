@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     repo_workspace_root: Path = Path(".workspaces/repos")
     artifact_root: Path = Path("artifacts")
     aws_region: str = "us-east-1"
+    openai_api_key: str | None = None
+    openai_model: str | None = None
+    openai_timeout_seconds: int = 30
 
 
 @lru_cache

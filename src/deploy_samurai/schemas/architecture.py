@@ -29,6 +29,7 @@ class CommunicationFlow(BaseModel):
 
 class ArchitectureReasoningResponse(BaseModel):
     architecture_type: Literal["modular_monolith", "microservices"]
+    summary: str = ""
     service_candidates: list[ServiceCandidate]
     communication_flows: list[CommunicationFlow] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)

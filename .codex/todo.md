@@ -18,7 +18,7 @@
 - [x] Define normalized repo metadata schema
 - [x] Implement service boundary heuristics
 - [x] Decide modular monolith versus microservices
-- [ ] Generate architecture summary output
+- [x] Generate architecture summary output
 - [ ] Write tests for reasoning outputs and schema validation
 
 ## Phase 3: SAM Generation
