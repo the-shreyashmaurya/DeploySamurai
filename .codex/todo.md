@@ -20,6 +20,10 @@
 - [x] Decide modular monolith versus microservices
 - [x] Generate architecture summary output
 - [x] Write tests for reasoning outputs and schema validation
+- [x] Expose repo analysis endpoint (`POST /v1/analyze/repo`)
+- [ ] Expose architecture reasoning endpoint (`POST /v1/reason/architecture`)
+- [ ] Wire LangGraph/OpenAI orchestration behind the reasoning endpoint
+- [ ] Return validated architecture summary payloads from the API
 
 ## Phase 3: SAM Generation
 - [ ] Define SAM artifact model
