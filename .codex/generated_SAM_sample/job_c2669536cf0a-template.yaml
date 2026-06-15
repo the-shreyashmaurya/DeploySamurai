@@ -1,0 +1,676 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'DeploySamurai architecture recommendation summary for kbastani__spring-cloud-microservice-example:
+
+
+  This Java Spring Cloud repository is best implemented as a microservices architecture,
+  with nine identified containerized service candidates: api-gateway (routes external
+  traffic), config (centralizes runtime configuration), consul (service discovery
+  and cluster DNS), discovery (service discovery and routing metadata), hystrix-dashboard
+  (circuit breaker and resilience dashboards), movie (manages movie catalog with MongoDB),
+  movies-ui (serves the movie recommendation UI), recommendation (computes recommendations
+  using Neo4j), and users (manages user profiles with MySQL).
+
+
+  Communication flows are synchronous HTTP calls primarily routed through the api-gateway
+  to hystrix-dashboard, movie, movies-ui, recommendation, and users services.
+
+
+  Key considerations include the heuristic nature of service boundaries, the absence
+  of repository tests which lowers deployment confidence, and the overall repository
+  structure supporting independently deployable microservices. These factors should
+  be reviewed prior to SAM generation.'
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where ECS Fargate services will run
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets for ECS Fargate tasks
+Resources:
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+  ContainerTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: ecs-tasks.amazonaws.com
+          Action: sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+  ApiGatewayRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${AWS::StackName}/api-gateway
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /ecs/${AWS::StackName}/api-gateway
+      RetentionInDays: 14
+  ApiGatewayTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+      - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn:
+        Fn::GetAtt:
+        - ContainerTaskExecutionRole
+        - Arn
+      ContainerDefinitions:
+      - Name: api-gateway
+        Image:
+          Fn::Sub:
+          - ${RepositoryUri}:latest
+          - RepositoryUri:
+              Fn::GetAtt:
+              - ApiGatewayRepository
+              - RepositoryUri
+        Essential: true
+        PortMappings:
+        - ContainerPort: 8080
+          Protocol: tcp
+        Environment:
+        - Name: SPRING_PROFILES_ACTIVE
+          Value: aws
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              Ref: ApiGatewayLogGroup
+            awslogs-region:
+              Ref: AWS::Region
+            awslogs-stream-prefix: api-gateway
+  ApiGatewayService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Ref: EcsCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition:
+        Ref: ApiGatewayTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            Ref: SubnetIds
+  ConfigRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${AWS::StackName}/config
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  ConfigLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /ecs/${AWS::StackName}/config
+      RetentionInDays: 14
+  ConfigTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+      - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn:
+        Fn::GetAtt:
+        - ContainerTaskExecutionRole
+        - Arn
+      ContainerDefinitions:
+      - Name: config
+        Image:
+          Fn::Sub:
+          - ${RepositoryUri}:latest
+          - RepositoryUri:
+              Fn::GetAtt:
+              - ConfigRepository
+              - RepositoryUri
+        Essential: true
+        PortMappings:
+        - ContainerPort: 8080
+          Protocol: tcp
+        Environment:
+        - Name: SPRING_PROFILES_ACTIVE
+          Value: aws
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              Ref: ConfigLogGroup
+            awslogs-region:
+              Ref: AWS::Region
+            awslogs-stream-prefix: config
+  ConfigService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Ref: EcsCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition:
+        Ref: ConfigTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            Ref: SubnetIds
+  ConsulRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${AWS::StackName}/consul
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  ConsulLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /ecs/${AWS::StackName}/consul
+      RetentionInDays: 14
+  ConsulTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+      - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn:
+        Fn::GetAtt:
+        - ContainerTaskExecutionRole
+        - Arn
+      ContainerDefinitions:
+      - Name: consul
+        Image:
+          Fn::Sub:
+          - ${RepositoryUri}:latest
+          - RepositoryUri:
+              Fn::GetAtt:
+              - ConsulRepository
+              - RepositoryUri
+        Essential: true
+        PortMappings:
+        - ContainerPort: 8080
+          Protocol: tcp
+        Environment:
+        - Name: SPRING_PROFILES_ACTIVE
+          Value: aws
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              Ref: ConsulLogGroup
+            awslogs-region:
+              Ref: AWS::Region
+            awslogs-stream-prefix: consul
+  ConsulService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Ref: EcsCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition:
+        Ref: ConsulTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            Ref: SubnetIds
+  DiscoveryRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${AWS::StackName}/discovery
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  DiscoveryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /ecs/${AWS::StackName}/discovery
+      RetentionInDays: 14
+  DiscoveryTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+      - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn:
+        Fn::GetAtt:
+        - ContainerTaskExecutionRole
+        - Arn
+      ContainerDefinitions:
+      - Name: discovery
+        Image:
+          Fn::Sub:
+          - ${RepositoryUri}:latest
+          - RepositoryUri:
+              Fn::GetAtt:
+              - DiscoveryRepository
+              - RepositoryUri
+        Essential: true
+        PortMappings:
+        - ContainerPort: 8080
+          Protocol: tcp
+        Environment:
+        - Name: SPRING_PROFILES_ACTIVE
+          Value: aws
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              Ref: DiscoveryLogGroup
+            awslogs-region:
+              Ref: AWS::Region
+            awslogs-stream-prefix: discovery
+  DiscoveryService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Ref: EcsCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition:
+        Ref: DiscoveryTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            Ref: SubnetIds
+  HystrixDashboardRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${AWS::StackName}/hystrix-dashboard
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  HystrixDashboardLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /ecs/${AWS::StackName}/hystrix-dashboard
+      RetentionInDays: 14
+  HystrixDashboardTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+      - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn:
+        Fn::GetAtt:
+        - ContainerTaskExecutionRole
+        - Arn
+      ContainerDefinitions:
+      - Name: hystrix-dashboard
+        Image:
+          Fn::Sub:
+          - ${RepositoryUri}:latest
+          - RepositoryUri:
+              Fn::GetAtt:
+              - HystrixDashboardRepository
+              - RepositoryUri
+        Essential: true
+        PortMappings:
+        - ContainerPort: 8080
+          Protocol: tcp
+        Environment:
+        - Name: SPRING_PROFILES_ACTIVE
+          Value: aws
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              Ref: HystrixDashboardLogGroup
+            awslogs-region:
+              Ref: AWS::Region
+            awslogs-stream-prefix: hystrix-dashboard
+  HystrixDashboardService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Ref: EcsCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition:
+        Ref: HystrixDashboardTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            Ref: SubnetIds
+  MovieRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${AWS::StackName}/movie
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  MovieLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /ecs/${AWS::StackName}/movie
+      RetentionInDays: 14
+  MovieTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+      - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn:
+        Fn::GetAtt:
+        - ContainerTaskExecutionRole
+        - Arn
+      ContainerDefinitions:
+      - Name: movie
+        Image:
+          Fn::Sub:
+          - ${RepositoryUri}:latest
+          - RepositoryUri:
+              Fn::GetAtt:
+              - MovieRepository
+              - RepositoryUri
+        Essential: true
+        PortMappings:
+        - ContainerPort: 8080
+          Protocol: tcp
+        Environment:
+        - Name: SPRING_PROFILES_ACTIVE
+          Value: aws
+        - Name: DEPLOYSAMURAI_DATA_STORE_HINT
+          Value: mongodb
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              Ref: MovieLogGroup
+            awslogs-region:
+              Ref: AWS::Region
+            awslogs-stream-prefix: movie
+  MovieService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Ref: EcsCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition:
+        Ref: MovieTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            Ref: SubnetIds
+  MoviesUiRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${AWS::StackName}/movies-ui
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  MoviesUiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /ecs/${AWS::StackName}/movies-ui
+      RetentionInDays: 14
+  MoviesUiTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+      - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn:
+        Fn::GetAtt:
+        - ContainerTaskExecutionRole
+        - Arn
+      ContainerDefinitions:
+      - Name: movies-ui
+        Image:
+          Fn::Sub:
+          - ${RepositoryUri}:latest
+          - RepositoryUri:
+              Fn::GetAtt:
+              - MoviesUiRepository
+              - RepositoryUri
+        Essential: true
+        PortMappings:
+        - ContainerPort: 8080
+          Protocol: tcp
+        Environment:
+        - Name: SPRING_PROFILES_ACTIVE
+          Value: aws
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              Ref: MoviesUiLogGroup
+            awslogs-region:
+              Ref: AWS::Region
+            awslogs-stream-prefix: movies-ui
+  MoviesUiService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Ref: EcsCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition:
+        Ref: MoviesUiTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            Ref: SubnetIds
+  RecommendationRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${AWS::StackName}/recommendation
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  RecommendationLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /ecs/${AWS::StackName}/recommendation
+      RetentionInDays: 14
+  RecommendationTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+      - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn:
+        Fn::GetAtt:
+        - ContainerTaskExecutionRole
+        - Arn
+      ContainerDefinitions:
+      - Name: recommendation
+        Image:
+          Fn::Sub:
+          - ${RepositoryUri}:latest
+          - RepositoryUri:
+              Fn::GetAtt:
+              - RecommendationRepository
+              - RepositoryUri
+        Essential: true
+        PortMappings:
+        - ContainerPort: 8080
+          Protocol: tcp
+        Environment:
+        - Name: SPRING_PROFILES_ACTIVE
+          Value: aws
+        - Name: DEPLOYSAMURAI_DATA_STORE_HINT
+          Value: neo4j
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              Ref: RecommendationLogGroup
+            awslogs-region:
+              Ref: AWS::Region
+            awslogs-stream-prefix: recommendation
+  RecommendationService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Ref: EcsCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition:
+        Ref: RecommendationTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            Ref: SubnetIds
+  UsersRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName:
+        Fn::Sub: ${AWS::StackName}/users
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  UsersLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /ecs/${AWS::StackName}/users
+      RetentionInDays: 14
+  UsersTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities:
+      - FARGATE
+      NetworkMode: awsvpc
+      Cpu: '512'
+      Memory: '1024'
+      ExecutionRoleArn:
+        Fn::GetAtt:
+        - ContainerTaskExecutionRole
+        - Arn
+      ContainerDefinitions:
+      - Name: users
+        Image:
+          Fn::Sub:
+          - ${RepositoryUri}:latest
+          - RepositoryUri:
+              Fn::GetAtt:
+              - UsersRepository
+              - RepositoryUri
+        Essential: true
+        PortMappings:
+        - ContainerPort: 8080
+          Protocol: tcp
+        Environment:
+        - Name: SPRING_PROFILES_ACTIVE
+          Value: aws
+        - Name: DEPLOYSAMURAI_DATA_STORE_HINT
+          Value: mysql
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group:
+              Ref: UsersLogGroup
+            awslogs-region:
+              Ref: AWS::Region
+            awslogs-stream-prefix: users
+  UsersService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster:
+        Ref: EcsCluster
+      DesiredCount: 1
+      LaunchType: FARGATE
+      TaskDefinition:
+        Ref: UsersTaskDefinition
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            Ref: SubnetIds
+Outputs:
+  ClusterName:
+    Description: ECS cluster for containerized services
+    Value:
+      Ref: EcsCluster
+  ApiGatewayImageRepository:
+    Description: ECR repository URI for api-gateway
+    Value:
+      Fn::GetAtt:
+      - ApiGatewayRepository
+      - RepositoryUri
+  ConfigImageRepository:
+    Description: ECR repository URI for config
+    Value:
+      Fn::GetAtt:
+      - ConfigRepository
+      - RepositoryUri
+  ConsulImageRepository:
+    Description: ECR repository URI for consul
+    Value:
+      Fn::GetAtt:
+      - ConsulRepository
+      - RepositoryUri
+  DiscoveryImageRepository:
+    Description: ECR repository URI for discovery
+    Value:
+      Fn::GetAtt:
+      - DiscoveryRepository
+      - RepositoryUri
+  HystrixDashboardImageRepository:
+    Description: ECR repository URI for hystrix-dashboard
+    Value:
+      Fn::GetAtt:
+      - HystrixDashboardRepository
+      - RepositoryUri
+  MovieImageRepository:
+    Description: ECR repository URI for movie
+    Value:
+      Fn::GetAtt:
+      - MovieRepository
+      - RepositoryUri
+  MoviesUiImageRepository:
+    Description: ECR repository URI for movies-ui
+    Value:
+      Fn::GetAtt:
+      - MoviesUiRepository
+      - RepositoryUri
+  RecommendationImageRepository:
+    Description: ECR repository URI for recommendation
+    Value:
+      Fn::GetAtt:
+      - RecommendationRepository
+      - RepositoryUri
+  UsersImageRepository:
+    Description: ECR repository URI for users
+    Value:
+      Fn::GetAtt:
+      - UsersRepository
+      - RepositoryUri

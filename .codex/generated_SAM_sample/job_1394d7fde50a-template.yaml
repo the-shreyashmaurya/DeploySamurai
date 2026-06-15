@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: "DeploySamurai\u2019s architecture for the thesakshidiggikar__thesakshidiggikar.github.io\
+  \ repository is best implemented as a modular monolith. The analysis identified\
+  \ a single candidate service, the frontend, responsible for serving the web frontend\
+  \ and routing browser traffic, running on an S3-CloudFront environment. No additional\
+  \ communication flows or data stores were detected. Given the absence of tests and\
+  \ only one service candidate, it is recommended to maintain internal modular boundaries\
+  \ and review these heuristics carefully before generating the SAM template. This\
+  \ approach supports simplicity and ease of deployment for the static-site JavaScript\
+  \ project."
+Resources:
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: ${AWS::StackName}-frontend-assets
+      VersioningConfiguration:
+        Status: Enabled
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+        - Id: FrontendS3Origin
+          DomainName:
+            Fn::GetAtt:
+            - FrontendBucket
+            - RegionalDomainName
+          S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: FrontendS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          CachedMethods:
+          - GET
+          - HEAD
+          ForwardedValues:
+            QueryString: false
+Outputs:
+  FrontendBucketName:
+    Description: S3 bucket for frontend static assets
+    Value:
+      Ref: FrontendBucket
+  FrontendDistributionDomainName:
+    Description: CloudFront domain for frontend
+    Value:
+      Fn::GetAtt:
+      - FrontendDistribution
+      - DomainName
